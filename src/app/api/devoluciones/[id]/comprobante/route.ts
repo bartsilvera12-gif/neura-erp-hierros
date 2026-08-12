@@ -167,7 +167,7 @@ export async function GET(request: NextRequest, ctxParams: { params: Promise<{ i
   <div class="hoja">
     <div class="header-top">
       <div class="brand">
-        <img src="/brand/ferrecolor-logo.png" alt="Ferrecolor" class="logo" />
+        <img src="/brand/hierros-logo.png" alt="HIERROS VH" class="logo" onerror="this.style.display='none'" />
         <div class="empresa-datos">
           <div class="razon">GRUPO FERRE E.A.S.</div>
           <div>R.U.C.: 80173997-7</div>

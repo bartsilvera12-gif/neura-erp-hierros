@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ChevronDown, LogOut, Menu } from "lucide-react";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
@@ -112,17 +111,16 @@ export default function Header() {
             className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 shadow-sm transition-all hover:border-[#4FAEB2]/60"
           >
             <div
-              className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white"
+              className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white"
               style={{ boxShadow: "0 0 0 3px rgba(79, 174, 178, 0.25)" }}
             >
-              <Image
-                src="/brand/ferrecolor-logo.png"
-                alt="Ferrecolor"
-                width={120}
-                height={120}
-                sizes="36px"
-                className="h-full w-full object-cover scale-150"
-                priority
+              <span className="absolute text-sm font-bold text-[#3F8E91]">VH</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/brand/hierros-logo.png"
+                alt="HIERROS VH"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                className="relative h-full w-full object-cover scale-150"
               />
             </div>
             <div className="hidden text-left sm:block">
