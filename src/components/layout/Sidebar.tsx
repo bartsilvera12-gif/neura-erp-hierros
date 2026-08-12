@@ -30,7 +30,6 @@ import {
   ChefHat,
   Utensils,
   BarChart3,
-  Banknote,
   HandCoins,
   ArrowLeftRight,
 } from "lucide-react";
@@ -88,7 +87,6 @@ const MENU_STRUCTURE: MenuItem[] = [
   { key: "dashboard", slug: "dashboard", label: "Dashboard", href: "/", icon: LayoutDashboard },
   { key: "clientes", slug: "clientes", label: "Clientes", href: "/clientes", icon: Users },
   { key: "ventas", slug: "ventas", label: "Ventas", href: "/ventas", icon: ShoppingCart },
-  { key: "cobros", slug: "cobros", label: "Cobranzas", href: "/cobros", icon: HandCoins },
   { key: "presupuestos", slug: "presupuestos", label: "Presupuestos", href: "/presupuestos", icon: FileText },
   { key: "inventario", slug: "inventario", label: "Inventario", href: "/inventario", icon: Package, children: [
     { label: "Productos", href: "/inventario" },
@@ -99,7 +97,7 @@ const MENU_STRUCTURE: MenuItem[] = [
     { label: "Órdenes", href: "/compras" },
     { label: "Proveedores", href: "/proveedores" },
   ]},
-  { key: "pagos", slug: "pagos", label: "Pagos", href: "/pagos", icon: Banknote },
+  { key: "pagos", slug: "pagos", label: "Cobranzas", href: "/pagos", icon: HandCoins },
   { key: "gastos", slug: "gastos", label: "Gastos", href: "/gastos", icon: Receipt },
   { key: "notas_credito", slug: "notas_credito", label: "Notas de crédito", href: "/notas-credito", icon: ScrollText },
   { key: "reportes", slug: "reportes", label: "Reportes", href: "/reportes", icon: BarChart3 },
@@ -113,8 +111,8 @@ const MENU_STRUCTURE: MenuItem[] = [
  */
 const MENU_FAMILIES: { id: string; titulo: string; keys: string[] }[] = [
   { id: "inicio", titulo: "Inicio", keys: ["dashboard"] },
-  { id: "comercial", titulo: "Comercial", keys: ["clientes", "ventas", "cobros", "presupuestos"] },
-  { id: "finanzas", titulo: "Finanzas", keys: ["pagos", "gastos", "notas_credito", "reportes"] },
+  { id: "comercial", titulo: "Comercial", keys: ["clientes", "ventas", "pagos", "presupuestos"] },
+  { id: "finanzas", titulo: "Finanzas", keys: ["gastos", "notas_credito", "reportes"] },
   { id: "operaciones", titulo: "Operaciones", keys: ["inventario", "movimientos", "compras"] },
   { id: "administracion", titulo: "Administración", keys: ["usuarios"] },
 ];

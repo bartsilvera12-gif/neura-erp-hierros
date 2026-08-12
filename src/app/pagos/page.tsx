@@ -143,8 +143,8 @@ export default function PagosPage() {
         <div className="flex items-center gap-3">
           <Banknote className="h-7 w-7 text-[#4FAEB2]" />
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#4FAEB2]">Cobranzas</p>
-            <h1 className="text-2xl font-bold text-gray-800">Pagos</h1>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#4FAEB2]">Comercial</p>
+            <h1 className="text-2xl font-bold text-gray-800">Cobranzas</h1>
             <p className="text-sm text-gray-500">Cuentas por cobrar de ventas a crédito y registro de cobros.</p>
           </div>
         </div>
