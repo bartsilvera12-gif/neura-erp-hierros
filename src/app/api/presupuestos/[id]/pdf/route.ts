@@ -5,19 +5,9 @@ import { membreteA4 } from "@/lib/documentos/membrete";
 /**
  * GET /api/presupuestos/[id]/pdf?auto=1
  *
- * Documento comercial A4 imprimible (HTML). El navegador imprime / guarda como PDF.
- * NO fiscal, NO toca SIFEN, NO descuenta stock.
+ * Hoja de presupuesto A4 imprimible (HTML) — formato PRN (HIERROS VH).
+ * El navegador imprime / guarda como PDF. NO fiscal, NO toca SIFEN, NO stock.
  */
-
-const NEGOCIO_FALLBACK = "Ferrecolor";
-
-function resolveNegocio(nombreEmpresa?: string | null): string {
-  const env = (process.env.NEURA_CLIENT_NAME ?? "").trim();
-  if (env) return env;
-  const e = (nombreEmpresa ?? "").trim();
-  if (e) return e;
-  return NEGOCIO_FALLBACK;
-}
 
 function esc(v: unknown): string {
   return String(v ?? "")
@@ -27,10 +17,10 @@ function esc(v: unknown): string {
     .replace(/"/g, "&quot;");
 }
 
-function fmtMoneda(n: unknown, moneda: string): string {
+/** Número con separador de miles es-PY. `dec` decimales (0 para Gs, 2 para kilos). */
+function fmtNum(n: unknown, dec = 0): string {
   const v = Number(n) || 0;
-  const simbolo = moneda === "USD" ? "USD " : "Gs. ";
-  return simbolo + v.toLocaleString("es-PY", { maximumFractionDigits: moneda === "USD" ? 2 : 0 });
+  return v.toLocaleString("es-PY", { minimumFractionDigits: dec, maximumFractionDigits: dec });
 }
 
 function fmtFecha(iso: unknown): string {
@@ -41,8 +31,6 @@ function fmtFecha(iso: unknown): string {
     return String(iso);
   }
 }
-
-const IVA_LABEL: Record<string, string> = { EXENTA: "Exenta", "5%": "5%", "10%": "10%" };
 
 export async function GET(request: NextRequest, ctxParams: { params: Promise<{ id: string }> }) {
   const { id } = await ctxParams.params;
@@ -66,96 +54,75 @@ export async function GET(request: NextRequest, ctxParams: { params: Promise<{ i
 
   const itq = await ctx.supabase
     .from("presupuesto_items")
-    .select("producto_nombre, sku, cantidad, unidad_medida, precio_unitario, iva_tipo, descuento, total")
+    .select("producto_nombre, sku, codigo, articulo, cantidad, kilos, precio_unitario, total, precio_total")
     .eq("empresa_id", ctx.auth.empresa_id)
     .eq("presupuesto_id", id)
     .order("created_at", { ascending: true });
   const items = (itq.data ?? []) as Record<string, unknown>[];
 
-  // Nombre del negocio.
-  let nombreEmpresa: string | null = null;
-  try {
-    const eq = await ctx.supabase
-      .from("empresas")
-      .select("nombre_empresa")
-      .eq("id", ctx.auth.empresa_id)
-      .maybeSingle();
-    nombreEmpresa = (eq.data as { nombre_empresa?: string } | null)?.nombre_empresa ?? null;
-  } catch {
-    /* fallback al nombre por defecto */
-  }
-  const negocio = resolveNegocio(nombreEmpresa);
-  const moneda = String(p.moneda ?? "PYG");
+  const moneda = String(p.moneda ?? "GS");
+  const simb = moneda === "USD" ? "USD" : "GS";
+
+  // Total de kilos (suma de la columna kilos de cada línea).
+  const totalKilos = items.reduce((acc, it) => acc + (Number(it.kilos) || 0), 0);
 
   const filas = items
-    .map((it) => {
-      const cant = Number(it.cantidad) || 0;
-      const unidad = it.unidad_medida ? ` ${esc(it.unidad_medida)}` : "";
+    .map((it, i) => {
+      const codigo = String(it.codigo ?? it.sku ?? "");
+      const articulo = String(it.articulo ?? it.producto_nombre ?? "");
+      const totalLinea = Number(it.precio_total) > 0 ? it.precio_total : it.total;
       return `
       <tr>
-        <td class="c">${cant.toLocaleString("es-PY", { maximumFractionDigits: 3 })}${unidad}</td>
-        <td>${esc(it.producto_nombre)}${it.sku ? `<span class="sku"> · ${esc(it.sku)}</span>` : ""}</td>
-        <td class="r">${fmtMoneda(it.precio_unitario, moneda)}</td>
-        <td class="c">${esc(IVA_LABEL[String(it.iva_tipo)] ?? it.iva_tipo)}</td>
-        <td class="r">${Number(it.descuento) > 0 ? fmtMoneda(it.descuento, moneda) : "—"}</td>
-        <td class="r">${fmtMoneda(it.total, moneda)}</td>
+        <td class="c">${i + 1}</td>
+        <td>${esc(codigo)}</td>
+        <td>${esc(articulo)}</td>
+        <td class="r">${fmtNum(it.cantidad, 2)}</td>
+        <td class="r">${fmtNum(it.kilos, 2)}</td>
+        <td class="r">${fmtNum(it.precio_unitario, 0)}</td>
+        <td class="r">${fmtNum(totalLinea, 0)}</td>
       </tr>`;
     })
     .join("");
-
-  const condiciones: string[] = [];
-  if (p.validez_dias) condiciones.push(`Validez: ${esc(p.validez_dias)} día(s)${p.fecha_vencimiento ? ` (vence ${fmtFecha(p.fecha_vencimiento)})` : ""}`);
-  if (p.forma_pago) condiciones.push(`Forma de pago: ${esc(p.forma_pago)}`);
-  if (p.plazo_entrega) condiciones.push(`Plazo de entrega: ${esc(p.plazo_entrega)}`);
 
   const html = `<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(p.numero_control)} — Presupuesto</title>
+<title>${esc(p.numero_control)} — Presupuesto HIERROS VH</title>
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
-  body { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: #1f2937; background: #f3f4f6; }
-  .page { width: 210mm; min-height: 297mm; margin: 0 auto; background: #fff; padding: 18mm 16mm; }
-  .head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #4FAEB2; padding-bottom: 12px; }
-  .negocio { font-size: 22px; font-weight: 800; color: #1f2937; }
-  .doc-tag { color: #6b7280; font-size: 12px; margin-top: 2px; letter-spacing: .08em; text-transform: uppercase; }
-  .meta { text-align: right; font-size: 13px; }
-  .meta .num { font-size: 18px; font-weight: 700; color: #4FAEB2; }
-  .grid2 { display: flex; gap: 24px; margin-top: 16px; }
-  .box { flex: 1; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 14px; }
-  .box h3 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; }
-  .box p { margin: 2px 0; font-size: 13px; }
-  table { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 13px; }
-  thead th { background: #4FAEB2; color: #fff; text-align: left; padding: 8px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
-  thead th.c, thead th.r { text-align: center; }
-  thead th.r { text-align: right; }
-  tbody td { padding: 8px 10px; border-bottom: 1px solid #eef2f4; vertical-align: top; }
-  tbody td.c { text-align: center; }
-  tbody td.r { text-align: right; }
-  .sku { color: #9ca3af; font-size: 11px; }
-  .totales { margin-top: 14px; margin-left: auto; width: 56%; font-size: 14px; }
-  .totales tr td { padding: 5px 10px; border: none; }
-  .totales tr td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
-  .totales .total-row td { border-top: 2px solid #4FAEB2; font-weight: 800; font-size: 16px; color: #1f2937; }
-  .cond { margin-top: 20px; }
-  .cond h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; margin: 0 0 6px; }
-  .cond ul { margin: 0; padding-left: 18px; font-size: 13px; }
-  .obs { margin-top: 14px; font-size: 13px; white-space: pre-wrap; }
-  .legal { margin-top: 26px; padding-top: 12px; border-top: 1px dashed #d1d5db; font-size: 11px; color: #6b7280; text-align: center; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: #111827; background: #f3f4f6; }
+  .page { width: 210mm; min-height: 297mm; margin: 0 auto; background: #fff; padding: 16mm 16mm; }
+  /* Encabezado PRN: cliente a la izquierda, N°/Sucursal/Tel a la derecha */
+  .prn-head { display: flex; justify-content: space-between; align-items: flex-start; margin-top: 8px; }
+  .prn-cliente { font-size: 13px; line-height: 1.5; }
+  .prn-cliente .senores { font-weight: 700; }
+  .prn-cliente .nombre { font-weight: 700; text-decoration: underline; margin-top: 6px; }
+  .prn-cliente .datos { color: #374151; margin-top: 2px; }
+  .prn-meta { text-align: right; font-size: 13px; line-height: 1.6; }
+  .prn-meta .num { font-size: 16px; font-weight: 800; }
+  .cotiz { margin: 18px 0 6px; font-weight: 700; font-size: 13px; }
+  table.items { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.items thead th { border-bottom: 2px solid #111827; text-align: left; padding: 6px 8px; font-weight: 700; }
+  table.items thead th.r { text-align: right; }
+  table.items thead th.c { text-align: center; }
+  table.items tbody td { padding: 5px 8px; border-bottom: 1px solid #eef2f4; }
+  table.items tbody td.r { text-align: right; font-variant-numeric: tabular-nums; }
+  table.items tbody td.c { text-align: center; }
+  .totales { margin-top: 14px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; font-size: 14px; }
+  .totales .tot { font-weight: 800; }
+  .totales .num { display: inline-block; min-width: 160px; text-align: right; font-variant-numeric: tabular-nums; }
+  .obs { margin-top: 18px; font-size: 12px; white-space: pre-wrap; }
+  .legal { margin-top: 24px; padding-top: 10px; border-top: 1px dashed #d1d5db; font-size: 11px; color: #6b7280; text-align: center; }
   .toolbar { position: sticky; top: 0; background: #111827; color: #fff; padding: 10px 16px; display: flex; gap: 10px; justify-content: center; }
-  .toolbar button { background: #4FAEB2; color: #fff; border: 0; padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; }
-  .corte { display: none; }
+  .toolbar button { background: #2563eb; color: #fff; border: 0; padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; }
   @media print {
     body { background: #fff; }
     .toolbar { display: none; }
     .page { width: auto; min-height: auto; margin: 0; padding: 10mm; }
     @page { size: A4 portrait; margin: 10mm; }
-    .corte { display: flex; align-items: center; gap: 8px; margin-top: 14px; padding-top: 6px;
-             font-size: 10px; color: #888; border-top: 1px dashed #999; }
-    .corte span { flex: 1; text-align: center; letter-spacing: 1px; text-transform: uppercase; }
   }
 </style>
 </head>
@@ -163,66 +130,55 @@ export async function GET(request: NextRequest, ctxParams: { params: Promise<{ i
   <div class="toolbar"><button onclick="window.print()">Imprimir / Guardar PDF</button></div>
   <div class="page">
     ${membreteA4()}
-    <div class="head">
-      <div>
-        <div class="negocio">PRESUPUESTO</div>
-        <div class="doc-tag">${esc(negocio)}</div>
+
+    <div class="prn-head">
+      <div class="prn-cliente">
+        <div class="senores">SEÑORES</div>
+        <div class="nombre">${esc(p.cliente_nombre)}</div>
+        ${p.cliente_ruc ? `<div class="datos">RUC/CI: ${esc(p.cliente_ruc)}</div>` : ""}
+        ${p.cliente_telefono ? `<div class="datos">Tel: ${esc(p.cliente_telefono)}</div>` : ""}
+        ${p.cliente_direccion ? `<div class="datos">${esc(p.cliente_direccion)}</div>` : ""}
+        <div style="margin-top:6px;font-weight:700;">PRESENTE:</div>
       </div>
-      <div class="meta">
-        <div class="num">${esc(p.numero_control)}</div>
+      <div class="prn-meta">
+        <div class="num">N°: ${esc(p.numero_control)}</div>
+        ${p.sucursal ? `<div>Sucursal: ${esc(p.sucursal)}</div>` : ""}
+        ${p.vendedor ? `<div>Vendedor: ${esc(p.vendedor)}</div>` : ""}
         <div>Fecha: ${fmtFecha(p.fecha)}</div>
         ${p.fecha_vencimiento ? `<div>Válido hasta: ${fmtFecha(p.fecha_vencimiento)}</div>` : ""}
       </div>
     </div>
 
-    <div class="grid2">
-      <div class="box">
-        <h3>Cliente</h3>
-        <p><strong>${esc(p.cliente_nombre)}</strong></p>
-        ${p.cliente_ruc ? `<p>RUC/CI: ${esc(p.cliente_ruc)}</p>` : ""}
-        ${p.cliente_telefono ? `<p>Tel: ${esc(p.cliente_telefono)}</p>` : ""}
-        ${p.cliente_direccion ? `<p>${esc(p.cliente_direccion)}</p>` : ""}
-      </div>
-      <div class="box">
-        <h3>Datos del presupuesto</h3>
-        <p>Moneda: ${moneda === "USD" ? "Dólares (USD)" : "Guaraníes (PYG)"}</p>
-        ${p.validez_dias ? `<p>Validez: ${esc(p.validez_dias)} día(s)</p>` : ""}
-        ${p.forma_pago ? `<p>Forma de pago: ${esc(p.forma_pago)}</p>` : ""}
-        ${p.plazo_entrega ? `<p>Plazo de entrega: ${esc(p.plazo_entrega)}</p>` : ""}
-      </div>
-    </div>
+    <div class="cotiz">COTIZACIÓN DE LO SOLICITADO:</div>
 
-    <table>
+    <table class="items">
       <thead>
         <tr>
-          <th class="c">Cant.</th>
-          <th>Descripción</th>
-          <th class="r">Precio unit.</th>
-          <th class="c">IVA</th>
-          <th class="r">Desc.</th>
-          <th class="r">Total</th>
+          <th class="c">Ítem</th>
+          <th>Código</th>
+          <th>Artículo</th>
+          <th class="r">Cantidad</th>
+          <th class="r">Kilos</th>
+          <th class="r">Precio Unitario</th>
+          <th class="r">Precio Total</th>
         </tr>
       </thead>
       <tbody>
-        ${filas || `<tr><td colspan="6" class="c">Sin ítems</td></tr>`}
+        ${filas || `<tr><td colspan="7" class="c">Sin ítems</td></tr>`}
       </tbody>
     </table>
 
-    <table class="totales">
-      <tr><td>Subtotal (sin IVA)</td><td>${fmtMoneda(p.subtotal, moneda)}</td></tr>
-      <tr><td>IVA</td><td>${fmtMoneda(p.monto_iva, moneda)}</td></tr>
-      ${Number(p.descuento_total) > 0 ? `<tr><td>Descuentos</td><td>- ${fmtMoneda(p.descuento_total, moneda)}</td></tr>` : ""}
-      <tr class="total-row"><td>TOTAL</td><td>${fmtMoneda(p.total, moneda)}</td></tr>
-    </table>
+    <div class="totales">
+      <div class="tot">TOTAL PRESUPUESTO: ${simb} <span class="num">${fmtNum(p.total, 0)}</span></div>
+      <div>TOTAL KILOS: <span class="num">${fmtNum(totalKilos, 2)}</span></div>
+    </div>
 
-    ${condiciones.length ? `<div class="cond"><h3>Condiciones comerciales</h3><ul>${condiciones.map((c) => `<li>${c}</li>`).join("")}</ul></div>` : ""}
     ${p.observaciones ? `<div class="obs"><strong>Observaciones:</strong>\n${esc(p.observaciones)}</div>` : ""}
 
     <div class="legal">
       Presupuesto sujeto a disponibilidad de stock y validez indicada.<br>
       Documento no fiscal — no válido como factura.
     </div>
-    <div class="corte"><span>✂ CORTAR AQUÍ ✂</span></div>
   </div>
   <script>try{ if (${auto ? "true" : "false"}) window.print(); }catch(e){}</script>
 </body>

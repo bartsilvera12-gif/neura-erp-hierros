@@ -11,14 +11,14 @@
  */
 
 export const EMPRESA_DOC = {
-  nombre: "Ferrecolor",
+  nombre: "HIERROS VH",
   actividad: [
-    "Comercio al por menor de artículos de ferretería, materiales de construcción y herramientas",
+    "Venta de hierros, caños, chapas, varillas y perfiles",
   ],
-  telefono: "",
-  direccion: ["Paraguay"],
+  telefono: "0992 976 141",
+  direccion: ["Villa Hayes · Paraguay"],
   /** Logo del cliente (alta calidad, sin fondo). Servido desde /public. */
-  logoUrl: "/brand/ferrecolor-logo.png",
+  logoUrl: "/brand/hierros-logo.png",
 };
 
 function esc(v: unknown): string {
@@ -39,7 +39,7 @@ export function membreteA4(origin = ""): string {
   return `
   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:18px;border-bottom:2px solid #2E7D32;padding-bottom:12px;margin-bottom:16px;">
     <div style="flex:0 0 auto;">
-      <img src="${esc(logo)}" alt="${esc(e.nombre)}" style="max-width:180px;max-height:92px;width:auto;height:auto;object-fit:contain;display:block;" />
+      <img src="${esc(logo)}" alt="${esc(e.nombre)}" onerror="this.style.display='none'" style="max-width:180px;max-height:92px;width:auto;height:auto;object-fit:contain;display:block;" />
     </div>
     <div style="flex:1;min-width:0;text-align:right;font-size:11px;color:#374151;line-height:1.55;">
       <div style="font-size:14px;font-weight:800;color:#1f2937;">${esc(e.nombre)}</div>
