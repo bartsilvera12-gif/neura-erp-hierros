@@ -11,7 +11,6 @@ import {
   Package,
   Users,
   FileText,
-  Settings,
   UserCog,
   Building2,
   ChevronDown,
@@ -28,12 +27,12 @@ import {
   History,
   Activity,
   ScrollText,
-  Percent,
   ChefHat,
   Utensils,
   BarChart3,
-  Wallet,
   Banknote,
+  HandCoins,
+  ArrowLeftRight,
 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
@@ -87,116 +86,24 @@ function adminEmpresasMatchesQuery(queryRaw: string): boolean {
 
 const MENU_STRUCTURE: MenuItem[] = [
   { key: "dashboard", slug: "dashboard", label: "Dashboard", href: "/", icon: LayoutDashboard },
-  // Modulo omnicanal/WhatsApp ocultado por ahora (codigo conservado por si se reactiva):
-  // - Conversaciones, Historial omnicanal, Finalizadas, Monitoreo
-  // {
-  //   key: "conversaciones", slug: "conversaciones", label: "Conversaciones",
-  //   href: "/dashboard/conversaciones", icon: MessageCircle,
-  // },
-  // {
-  //   key: "historial-omnicanal", slug: "historial-omnicanal", label: "Historial omnicanal",
-  //   href: "/dashboard/historial-omnicanal", icon: History,
-  // },
-  // {
-  //   key: "conversaciones-finalizadas", slug: "conversaciones-finalizadas", label: "Finalizadas",
-  //   href: "/dashboard/conversaciones-finalizadas", icon: ListChecks,
-  // },
-  // {
-  //   key: "monitoreo", slug: "monitoreo", label: "Monitoreo",
-  //   href: "/dashboard/monitoreo", icon: Activity,
-  // },
-  { key: "ventas", slug: "ventas", label: "Caja", href: "/ventas", icon: ShoppingCart },
-  // Pedidos: vendedor arma pedidos en el salon; este listado es gestion
-  // (ver/editar/cancelar). El cobro se hace desde la Caja (/ventas), que
-  // muestra el listado "Pedidos por cobrar" embebido. Slug 'ventas' para
-  // heredar acceso del modulo. La ruta vieja /consulta redirige a /pedidos.
-  // Pedidos oculto para Ferrecolor: flujo pensado para salon/restaurante,
-  // no aplica en venta mostrador. La ruta /pedidos sigue existiendo por URL.
-  // { key: "pedidos", slug: "ventas", label: "Pedidos", href: "/pedidos", icon: Receipt },
-  // Presupuestos: cotizaciones al cliente con PDF (logo + membrete Ferreteria
-  // Republica). Reactivado a pedido.
+  { key: "clientes", slug: "clientes", label: "Clientes", href: "/clientes", icon: Users },
+  { key: "ventas", slug: "ventas", label: "Ventas", href: "/ventas", icon: ShoppingCart },
+  { key: "cobros", slug: "cobros", label: "Cobranzas", href: "/cobros", icon: HandCoins },
   { key: "presupuestos", slug: "presupuestos", label: "Presupuestos", href: "/presupuestos", icon: FileText },
-  // Items gastro/legacy ocultados para ferreteria (codigo conservado por si se reactivan):
-  // - Pedidos (proyectos): kanban de cocina, no aplica.
-  // - Recetas: combos/insumos, no aplica.
-  // {
-  //   key: "proyectos", slug: "proyectos", label: "Pedidos",
-  //   href: "/dashboard/proyectos", icon: Utensils,
-  // },
-  // { key: "recetas", slug: "recetas", label: "Recetas", href: "/dashboard/recetas", icon: ChefHat },
   { key: "inventario", slug: "inventario", label: "Inventario", href: "/inventario", icon: Package, children: [
     { label: "Productos", href: "/inventario" },
-    { label: "Movimientos", href: "/inventario/movimientos" },
     { label: "Categorías", href: "/inventario/categorias" },
-    // Depósitos / Ubicaciones oculto para Ferrecolor (no aplica).
-    // { label: "Depósitos / Ubicaciones", href: "/inventario/ubicaciones" },
   ]},
-  // Clientes: reactivado para que el modulo Consulta pueda asociar pedidos.
-  { key: "clientes", slug: "clientes", label: "Clientes", href: "/clientes", icon: Users },
-  {
-    key: "compras",
-    slug: "compras",
-    label: "Compras",
-    href: "/compras",
-    icon: Package,
-    children: [
-      { label: "Órdenes", href: "/compras" },
-      { label: "Proveedores", href: "/proveedores" },
-    ],
-  },
+  { key: "movimientos", slug: "inventario", label: "Movimientos", href: "/inventario/movimientos", icon: ArrowLeftRight },
+  { key: "compras", slug: "compras", label: "Compras", href: "/compras", icon: Package, children: [
+    { label: "Órdenes", href: "/compras" },
+    { label: "Proveedores", href: "/proveedores" },
+  ]},
   { key: "pagos", slug: "pagos", label: "Pagos", href: "/pagos", icon: Banknote },
   { key: "gastos", slug: "gastos", label: "Gastos", href: "/gastos", icon: Receipt },
-  // Otros ingresos: ingresos manuales que NO son ventas de productos (cartones,
-  // servicios, alquileres). Suman a caja, no tocan inventario. Slug 'ventas'
-  // para heredar acceso (mismo permiso que Caja).
-  { key: "otros_ingresos", slug: "ventas", label: "Otros ingresos", href: "/otros-ingresos", icon: Wallet },
-  // Entidades bancarias: cajas, bancos, tarjetas, billeteras usadas para
-  // conciliacion de transferencias y tarjetas en cobros/ventas. Era submenu
-  // de Configuracion; ahora modulo standalone para mejor accesibilidad.
-  { key: "entidades_bancarias", slug: "ventas", label: "Entidades bancarias", href: "/configuracion/entidades-bancarias", icon: Building2 },
+  { key: "notas_credito", slug: "notas_credito", label: "Notas de crédito", href: "/notas-credito", icon: ScrollText },
   { key: "reportes", slug: "reportes", label: "Reportes", href: "/reportes", icon: BarChart3 },
-  // Pagos oculto en instancia En lo de Mari (no usa este módulo).
-  // Comisiones y Notas de credito ocultos por ahora:
-  { key: "comisiones", slug: "comisiones", label: "Comisiones", href: "/comisiones", icon: Percent },
-  // {
-  //   key: "notas_credito", slug: "notas_credito", label: "Notas de crédito",
-  //   href: "/notas-credito", icon: ScrollText,
-  // },
-  // Usuarios oculto del sidebar (codigo conservado, ruta accesible por URL).
-  // { key: "usuarios", slug: "usuarios", label: "Usuarios", href: "/usuarios", icon: UserCog },
-  // Configuracion: reactivado a pedido. Da acceso al panel de facturacion
-  // (modo / autoimpresor) y demas subpaginas de configuracion.
-  {
-    key: "configuracion",
-    slug: "configuracion",
-    label: "Configuración",
-    href: "/configuracion",
-    icon: Settings,
-    children: [
-      // Facturación oculta: facturación electrónica desactivada para Ferrecolor.
-      // { label: "Facturación", href: "/configuracion/facturacion" },
-      { label: "Equipos y supervisión", href: "/configuracion/omnicanal-equipos" },
-    ],
-  },
-  // Items ocultos en ferreteria (no aplican / duplicados):
-  // - Planes: suscripciones, modelo SaaS.
-  // - Gestion Clientes: duplicado de Clientes con vista distinta.
-  // - Marketing Legacy: reemplazado por Marketing Ops.
-  // { key: "planes", slug: "planes", label: "Planes", href: "/planes", icon: FileText },
-  // { key: "gestion-clientes", slug: "gestion-clientes", label: "Gestión Clientes", href: "/gestion-clientes", icon: Users },
-  // CRM, Marketing y Campanas ocultos por ahora:
-  // { key: "crm", slug: "crm", label: "CRM Funnel", href: "/crm", icon: Sparkles },
-  // { key: "marketing", slug: "marketing", label: "Marketing Legacy", href: "/marketing", icon: Megaphone },
-  // { key: "marketing_ops", slug: "marketing_ops", label: "Marketing Ops", href: "/dashboard/marketing-ops", icon: Megaphone },
-  // {
-  //   key: "campanas", slug: "campanas", label: "Campañas",
-  //   href: "/dashboard/campanas", icon: SendHorizontal,
-  // },
-  // Sorteos ocultado: modulo especifico, no aplica a la ferreteria por ahora.
-  // {
-  //   key: "sorteos", slug: "sorteos", label: "Sorteos", href: "/sorteos", icon: Ticket,
-  //   children: [{ label: "Tickets / Comprobantes", href: "/sorteos/tickets", exactMatch: true }],
-  // },
+  { key: "usuarios", slug: "usuarios", label: "Usuarios", href: "/usuarios", icon: UserCog },
 ];
 
 /**
@@ -206,12 +113,10 @@ const MENU_STRUCTURE: MenuItem[] = [
  */
 const MENU_FAMILIES: { id: string; titulo: string; keys: string[] }[] = [
   { id: "inicio", titulo: "Inicio", keys: ["dashboard"] },
-  { id: "comercial", titulo: "Comercial", keys: ["clientes", "crm", "gestion-clientes", "ventas", "presupuestos", "comisiones", "planes"] },
-  { id: "finanzas", titulo: "Finanzas", keys: ["pagos", "gastos", "otros_ingresos", "entidades_bancarias", "notas_credito", "reportes"] },
-  { id: "operaciones", titulo: "Operaciones", keys: ["inventario", "compras", "recetas", "proyectos"] },
-  { id: "omnicanal", titulo: "Omnicanal", keys: ["conversaciones", "conversaciones-finalizadas", "historial-omnicanal", "monitoreo", "campanas"] },
-  { id: "marketing", titulo: "Marketing y Automatización", keys: ["marketing", "marketing_ops", "sorteos"] },
-  { id: "administracion", titulo: "Administración", keys: ["usuarios", "configuracion"] },
+  { id: "comercial", titulo: "Comercial", keys: ["clientes", "ventas", "cobros", "presupuestos"] },
+  { id: "finanzas", titulo: "Finanzas", keys: ["pagos", "gastos", "notas_credito", "reportes"] },
+  { id: "operaciones", titulo: "Operaciones", keys: ["inventario", "movimientos", "compras"] },
+  { id: "administracion", titulo: "Administración", keys: ["usuarios"] },
 ];
 
 function modulosSyntheticFromMenu(): ModuloEmpresa[] {
