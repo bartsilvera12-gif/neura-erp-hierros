@@ -335,10 +335,10 @@ export default function NuevoPresupuestoPage() {
                         <input value={it.producto_nombre} onChange={(e) => updItem(i, { producto_nombre: e.target.value })} className={inputClass} placeholder="Descripción" />
                       </td>
                       <td className="py-2 px-2">
-                        <input type="number" min="0" step="0.01" value={it.cantidad} onChange={(e) => updItem(i, { cantidad: Number(e.target.value) })} className={inputClass} />
+                        <input type="number" min="0" step="0.01" value={it.cantidad} onChange={(e) => updItem(i, { cantidad: Number(e.target.value) })} onFocus={(e) => e.target.select()} className={inputClass} />
                       </td>
                       <td className="py-2 px-2">
-                        <input type="number" min="0" step="1" value={it.precio_unitario} onChange={(e) => updItem(i, { precio_unitario: Number(e.target.value) })} className={inputClass} />
+                        <input type="number" min="0" step="1" value={it.precio_unitario === 0 ? "" : it.precio_unitario} onChange={(e) => updItem(i, { precio_unitario: e.target.value === "" ? 0 : Number(e.target.value) })} onFocus={(e) => e.target.select()} className={inputClass} />
                       </td>
                       <td className="py-2 px-2">
                         <select value={it.iva_tipo} onChange={(e) => updItem(i, { iva_tipo: e.target.value as IvaTipoPresupuesto })} className={`${inputClass} bg-white`}>
@@ -346,7 +346,7 @@ export default function NuevoPresupuestoPage() {
                         </select>
                       </td>
                       <td className="py-2 px-2">
-                        <input type="number" min="0" step="1" value={it.descuento} onChange={(e) => updItem(i, { descuento: Number(e.target.value) })} className={inputClass} />
+                        <input type="number" min="0" step="1" value={it.descuento === 0 ? "" : it.descuento} onChange={(e) => updItem(i, { descuento: e.target.value === "" ? 0 : Number(e.target.value) })} onFocus={(e) => e.target.select()} className={inputClass} />
                       </td>
                       <td className="py-2 px-2 text-right tabular-nums font-medium">{fmtGs(t.total)}</td>
                       <td className="py-2 pl-2 text-right">
