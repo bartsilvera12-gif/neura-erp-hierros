@@ -170,3 +170,45 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
     return NextResponse.json(errorResponse("No se pudo actualizar el proveedor."), { status: 500 });
   }
 }
+
+/** DELETE /api/proveedores/[id] — borra el proveedor (si no tiene compras/órdenes asociadas). */
+export async function DELETE(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  try {
+    const tenant = await getTenantSupabaseFromAuth(request);
+    if (!tenant) return NextResponse.json(errorResponse(API_ERRORS.UNAUTHORIZED), { status: 401 });
+    const { id } = await ctx.params;
+    const empresaId = tenant.auth.empresa_id;
+
+    // Borrar primero los vínculos de categorías (si existen) para no chocar con FKs.
+    await tenant.supabase
+      .from("proveedor_categoria_links")
+      .delete()
+      .eq("empresa_id", empresaId)
+      .eq("proveedor_id", id);
+
+    const del = await tenant.supabase
+      .from("proveedores")
+      .delete()
+      .eq("empresa_id", empresaId)
+      .eq("id", id)
+      .select("id")
+      .maybeSingle();
+
+    if (del.error) {
+      const msg = del.error.message ?? "";
+      if (/foreign key|violates|23503/i.test(msg)) {
+        return NextResponse.json(
+          errorResponse("No se puede borrar: el proveedor tiene compras u órdenes asociadas. Desactivalo en su lugar."),
+          { status: 409 }
+        );
+      }
+      console.error("[/api/proveedores/[id] DELETE]", msg);
+      return NextResponse.json(errorResponse("No se pudo borrar el proveedor."), { status: 500 });
+    }
+    if (!del.data) return NextResponse.json(errorResponse("Proveedor no encontrado."), { status: 404 });
+    return NextResponse.json(successResponse({ ok: true }));
+  } catch (err) {
+    console.error("[/api/proveedores/[id] DELETE] outer", err instanceof Error ? err.message : err);
+    return NextResponse.json(errorResponse("No se pudo borrar el proveedor."), { status: 500 });
+  }
+}

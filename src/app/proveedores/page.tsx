@@ -30,6 +30,14 @@ export default function ProveedoresPage() {
     };
   }, [refreshKey]);
 
+  async function borrarProveedor(p: Proveedor) {
+    if (!window.confirm(`¿Borrar el proveedor "${p.nombre}"? Esta acción no se puede deshacer.`)) return;
+    const r = await fetch(`/api/proveedores/${p.id}`, { method: "DELETE", credentials: "include" });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j?.success) setRefreshKey((k) => k + 1);
+    else alert(j?.error ?? "No se pudo borrar el proveedor.");
+  }
+
   const filtradas = useMemo(() => {
     if (!busqueda.trim()) return lista;
     return lista.filter((p) => {
@@ -154,12 +162,20 @@ export default function ProveedoresPage() {
                       </span>
                     </td>
                     <td className="py-3">
-                      <Link
-                        href={`/proveedores/${p.id}/editar`}
-                        className="text-sm font-medium text-sky-600 hover:underline"
-                      >
-                        Editar
-                      </Link>
+                      <div className="inline-flex items-center gap-3">
+                        <Link
+                          href={`/proveedores/${p.id}/editar`}
+                          className="text-sm font-medium text-sky-600 hover:underline"
+                        >
+                          Editar
+                        </Link>
+                        <button
+                          onClick={() => borrarProveedor(p)}
+                          className="text-sm font-medium text-red-600 hover:underline"
+                        >
+                          Borrar
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
