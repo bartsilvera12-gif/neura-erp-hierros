@@ -31,7 +31,6 @@ import {
   Utensils,
   BarChart3,
   HandCoins,
-  ArrowLeftRight,
 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
@@ -90,9 +89,9 @@ const MENU_STRUCTURE: MenuItem[] = [
   { key: "presupuestos", slug: "presupuestos", label: "Presupuestos", href: "/presupuestos", icon: FileText },
   { key: "inventario", slug: "inventario", label: "Inventario", href: "/inventario", icon: Package, children: [
     { label: "Productos", href: "/inventario" },
+    { label: "Movimientos", href: "/inventario/movimientos" },
     { label: "Categorías", href: "/inventario/categorias" },
   ]},
-  { key: "movimientos", slug: "inventario", label: "Movimientos", href: "/inventario/movimientos", icon: ArrowLeftRight },
   { key: "compras", slug: "compras", label: "Compras", href: "/compras", icon: Package, children: [
     { label: "Órdenes", href: "/compras" },
     { label: "Proveedores", href: "/proveedores" },
@@ -113,7 +112,7 @@ const MENU_FAMILIES: { id: string; titulo: string; keys: string[] }[] = [
   { id: "inicio", titulo: "Inicio", keys: ["dashboard"] },
   { id: "comercial", titulo: "Comercial", keys: ["clientes", "ventas", "pagos", "presupuestos"] },
   { id: "finanzas", titulo: "Finanzas", keys: ["gastos", "notas_credito", "reportes"] },
-  { id: "operaciones", titulo: "Operaciones", keys: ["inventario", "movimientos", "compras"] },
+  { id: "operaciones", titulo: "Operaciones", keys: ["inventario", "compras"] },
   { id: "administracion", titulo: "Administración", keys: ["usuarios"] },
 ];
 
