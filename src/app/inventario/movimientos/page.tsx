@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Search,
-  Plus,
   ArrowLeft,
   Package,
   ChevronLeft,
@@ -163,13 +162,6 @@ export default function MovimientosPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Link
-            href="/inventario/movimientos/nuevo"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[#4FAEB2] hover:bg-[#3F8E91] text-white text-sm font-bold px-3.5 py-2.5 transition-colors shadow-sm shadow-[#4FAEB2]/30"
-          >
-            <Plus className="h-4 w-4" strokeWidth={2.5} />
-            Nuevo movimiento
-          </Link>
           <Link
             href="/inventario"
             className="group inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-[#4FAEB2] hover:bg-[#4FAEB2]/5 hover:text-[#3F8E91]"
