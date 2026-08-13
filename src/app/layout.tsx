@@ -17,8 +17,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Ferrecolor",
-  description: "Sistema de gestión Zentra — Ferrecolor",
+  title: "HIERROS VH",
+  description: "Sistema de gestión Zentra — HIERROS VH",
 };
 
 export const viewport: Viewport = {

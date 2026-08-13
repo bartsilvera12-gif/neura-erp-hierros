@@ -227,7 +227,7 @@ export async function GET(
 
     const html = `<!doctype html>
 <html lang="es"><head><meta charset="utf-8" />
-<title>Comprobante ${escapeHtml(numeroControl)} — Ferrecolor</title>
+<title>Comprobante ${escapeHtml(numeroControl)} — HIERROS VH</title>
 <style>
   * { box-sizing: border-box; }
   @page { size: A4 portrait; margin: 8mm; }

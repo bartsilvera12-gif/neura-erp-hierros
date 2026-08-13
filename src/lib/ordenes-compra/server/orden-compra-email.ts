@@ -42,7 +42,7 @@ function buildHtml(rows: OrdenCompraRow[]): { subject: string; html: string } {
   const html = `
   <div style="font-family:Arial,Helvetica,sans-serif;color:#0f172a;max-width:640px;margin:0 auto">
     <h2 style="color:#3F8E91;margin:0 0 4px">Orden de compra ${esc(cab.numero_oc)}</h2>
-    <p style="margin:0 0 16px;color:#64748b;font-size:13px">Ferrecolor · generada desde el ERP</p>
+    <p style="margin:0 0 16px;color:#64748b;font-size:13px">HIERROS VH · generada desde el ERP</p>
     <table style="width:100%;font-size:14px;margin-bottom:16px">
       <tr><td style="padding:2px 0;color:#64748b">Proveedor</td><td style="padding:2px 0;text-align:right;font-weight:bold">${esc(cab.proveedor_nombre || "—")}</td></tr>
       <tr><td style="padding:2px 0;color:#64748b">Fecha</td><td style="padding:2px 0;text-align:right">${esc(fecha)}</td></tr>
