@@ -61,3 +61,40 @@ export async function PATCH(
     return NextResponse.json(errorResponse("No se pudo actualizar la categoría."), { status: 500 });
   }
 }
+
+/** DELETE /api/inventario/categorias/[id] — borra la categoría (si no tiene productos/subcategorías). */
+export async function DELETE(
+  request: NextRequest,
+  ctxParams: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await ctxParams.params;
+    const ctx = await getTenantSupabaseFromAuth(request);
+    if (!ctx) return NextResponse.json(errorResponse(API_ERRORS.UNAUTHORIZED), { status: 401 });
+
+    const del = await ctx.supabase
+      .from("categorias_productos")
+      .delete()
+      .eq("empresa_id", ctx.auth.empresa_id)
+      .eq("id", id)
+      .select("id")
+      .maybeSingle();
+
+    if (del.error) {
+      const msg = del.error.message ?? "";
+      if (/foreign key|violates|23503/i.test(msg)) {
+        return NextResponse.json(
+          errorResponse("No se puede borrar: la categoría tiene productos o subcategorías asociadas. Reasignalos o desactivá la categoría."),
+          { status: 409 }
+        );
+      }
+      console.error("[/api/inventario/categorias/[id] DELETE]", msg);
+      return NextResponse.json(errorResponse("No se pudo borrar la categoría."), { status: 500 });
+    }
+    if (!del.data) return NextResponse.json(errorResponse(API_ERRORS.NOT_FOUND), { status: 404 });
+    return NextResponse.json(successResponse({ ok: true }));
+  } catch (err) {
+    console.error("[/api/inventario/categorias/[id] DELETE] outer", err);
+    return NextResponse.json(errorResponse("No se pudo borrar la categoría."), { status: 500 });
+  }
+}

@@ -12,6 +12,15 @@ import type { Proveedor } from "@/lib/proveedores/types";
 import type { MetodoValuacion, Producto } from "@/lib/inventario/types";
 import { productoMatchesQuery } from "@/lib/productos/token-search";
 
+/** Formatea timbrado/factura como 000-000-0000000 insertando los guiones solo (3-3-7). */
+function fmtComprobante(v: string): string {
+  const d = v.replace(/\D/g, "").slice(0, 13);
+  let out = d.slice(0, 3);
+  if (d.length > 3) out += "-" + d.slice(3, 6);
+  if (d.length > 6) out += "-" + d.slice(6, 13);
+  return out;
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function formatGs(valor: number) {
@@ -406,14 +415,14 @@ export default function NuevaCompraPage() {
               <div>
                 <label className={labelClass}>N° de timbrado <span className="text-red-500">*</span></label>
                 <input type="text" name="nro_timbrado" value={cab.nro_timbrado}
-                  onChange={(e) => setCab((p) => ({ ...p, nro_timbrado: e.target.value }))}
-                  placeholder="Ej: 001-001-0000001" className={inputClass} />
+                  onChange={(e) => setCab((p) => ({ ...p, nro_timbrado: fmtComprobante(e.target.value) }))}
+                  inputMode="numeric" placeholder="Ej: 001-001-0000001" className={inputClass} />
               </div>
               <div>
                 <label className={labelClass}>N° de factura <span className="text-red-500">*</span></label>
                 <input type="text" name="numero_factura" value={cab.numero_factura}
-                  onChange={(e) => setCab((p) => ({ ...p, numero_factura: e.target.value }))}
-                  placeholder="Ej: 001-001-0000123" className={inputClass} />
+                  onChange={(e) => setCab((p) => ({ ...p, numero_factura: fmtComprobante(e.target.value) }))}
+                  inputMode="numeric" placeholder="Ej: 001-001-0000123" className={inputClass} />
               </div>
               <div>
                 <label className={labelClass}>Fecha de la compra <span className="text-gray-400 font-normal">(default hoy)</span></label>

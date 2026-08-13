@@ -106,6 +106,32 @@ export default function PresupuestosPage() {
     [mostrarToast]
   );
 
+  const borrar = useCallback(
+    async (id: string, numero: string) => {
+      if (!window.confirm(`¿Borrar el presupuesto ${numero}? Esta acción no se puede deshacer.`)) return;
+      setActualizando((prev) => new Set(prev).add(id));
+      try {
+        const res = await fetchWithSupabaseSession(`/api/presupuestos/${id}`, { method: "DELETE" });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || body?.success === false) {
+          mostrarToast("error", body?.error ?? "No se pudo borrar el presupuesto.");
+          return;
+        }
+        setRows((prev) => prev.filter((r) => r.id !== id));
+        mostrarToast("ok", `Presupuesto ${numero} borrado.`);
+      } catch {
+        mostrarToast("error", "Error de red al borrar.");
+      } finally {
+        setActualizando((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+    },
+    [mostrarToast]
+  );
+
   const cargar = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -249,6 +275,15 @@ export default function PresupuestosPage() {
                           <Link href={`/presupuestos/${r.id}/editar`} className="text-sm font-medium text-slate-600 hover:underline">
                             Editar
                           </Link>
+                        )}
+                        {r.estado !== "convertido" && (
+                          <button
+                            onClick={() => borrar(r.id, r.numero_control)}
+                            disabled={actualizando.has(r.id)}
+                            className="text-sm font-medium text-red-600 hover:underline disabled:opacity-50"
+                          >
+                            Borrar
+                          </button>
                         )}
                       </div>
                     </td>

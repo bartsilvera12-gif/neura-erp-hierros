@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { Pencil, Power, Upload, X, ImageIcon, Plus, ArrowLeft, Package } from "lucide-react";
+import { Pencil, Power, Upload, X, ImageIcon, Plus, ArrowLeft, Package, Trash2 } from "lucide-react";
 import ExportExcelButton from "@/components/ui/ExportExcelButton";
 import ImportExcelButton from "@/components/ui/ImportExcelButton";
 import { useIsAdmin } from "@/lib/auth/use-is-admin";
@@ -212,6 +212,17 @@ export default function CategoriasProductosPage() {
     else setError(j?.error ?? "No se pudo actualizar.");
   }
 
+  async function borrarCategoria(cat: Categoria) {
+    if (!window.confirm(`¿Borrar la categoría "${cat.nombre}"? Esta acción no se puede deshacer.`)) return;
+    const r = await fetch(`/api/inventario/categorias/${cat.id}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j?.success) load();
+    else setError(j?.error ?? "No se pudo borrar la categoría.");
+  }
+
   // Imagen mostrada en el modal: pending preview > url actual > nada
   const modalCurrentImage = eImagenPendingPreview ?? eImagenUrl ?? null;
 
@@ -412,6 +423,14 @@ export default function CategoriasProductosPage() {
                         >
                           <Power className="w-3.5 h-3.5" />
                           {c.activo ? "Desactivar" : "Activar"}
+                        </button>
+                        <button
+                          onClick={() => borrarCategoria(c)}
+                          title="Borrar categoría"
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-600 hover:text-white hover:bg-red-600 border border-red-200 hover:border-red-600 px-2.5 py-1.5 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Borrar
                         </button>
                       </div>
                     </td>

@@ -193,3 +193,42 @@ export async function PATCH(request: NextRequest, ctxParams: { params: Promise<{
     return NextResponse.json(errorResponse("No se pudo actualizar el presupuesto."), { status: 500 });
   }
 }
+
+/** DELETE /api/presupuestos/[id] — borra el presupuesto y sus ítems (no si está convertido). */
+export async function DELETE(request: NextRequest, ctxParams: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await ctxParams.params;
+    const ctx = await getTenantSupabaseFromAuth(request);
+    if (!ctx) return NextResponse.json(errorResponse(API_ERRORS.UNAUTHORIZED), { status: 401 });
+
+    const cur = await ctx.supabase
+      .from("presupuestos")
+      .select("estado")
+      .eq("empresa_id", ctx.auth.empresa_id)
+      .eq("id", id)
+      .maybeSingle();
+    if (cur.error) throw new Error(cur.error.message);
+    if (!cur.data) return NextResponse.json(errorResponse(API_ERRORS.NOT_FOUND), { status: 404 });
+    if ((cur.data as { estado: string }).estado === "convertido") {
+      return NextResponse.json(errorResponse("El presupuesto ya fue convertido; no se puede borrar."), { status: 409 });
+    }
+
+    // Ítems primero (por si no hay ON DELETE CASCADE), luego la cabecera.
+    await ctx.supabase
+      .from("presupuesto_items")
+      .delete()
+      .eq("empresa_id", ctx.auth.empresa_id)
+      .eq("presupuesto_id", id);
+    const del = await ctx.supabase
+      .from("presupuestos")
+      .delete()
+      .eq("empresa_id", ctx.auth.empresa_id)
+      .eq("id", id);
+    if (del.error) throw new Error(del.error.message);
+
+    return NextResponse.json(successResponse({ ok: true }));
+  } catch (err) {
+    console.error("[/api/presupuestos/[id] DELETE]", err instanceof Error ? err.message : err);
+    return NextResponse.json(errorResponse("No se pudo borrar el presupuesto."), { status: 500 });
+  }
+}
