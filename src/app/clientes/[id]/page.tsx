@@ -955,7 +955,7 @@ export default function ClienteDetailPage() {
 
       {/* ── Panel resumen ─────────────────────────────────────────────────── */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="bg-gradient-to-r from-[#0EA5E9] to-[#0284C7] px-6 py-5">
+        <div className="bg-gradient-to-r from-slate-800 via-slate-800 to-[#3F8E91] px-6 py-5">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-4">
               {/* Avatar */}
