@@ -51,20 +51,25 @@ function calcIva(tipo: TipoIvaVenta, total: number) {
  *  mayorista → precio_mayorista (>0) o fallback a precio_venta;
  *  costo     → costo_promedio.
  */
+// HIERROS VH: niveles de precio calculados sobre el precio de lista.
+//  A (minorista)    = precio de lista (precio_venta)
+//  B (mayorista)    = lista + 5%
+//  C (distribuidor) = lista + 10%
 function precioPorTipo(p: Producto, tipo: TipoPrecioVenta): number {
-  if (tipo === "mayorista") return p.precio_mayorista != null && p.precio_mayorista > 0 ? p.precio_mayorista : p.precio_venta;
-  if (tipo === "distribuidor") return p.precio_distribuidor != null && p.precio_distribuidor > 0 ? p.precio_distribuidor : p.precio_venta;
+  const lista = p.precio_venta;
+  if (tipo === "mayorista") return Math.round(lista * 1.05);    // B
+  if (tipo === "distribuidor") return Math.round(lista * 1.10); // C
   if (tipo === "costo") return p.costo_promedio ?? 0; // histórico: ya no se ofrece en la UI
-  return p.precio_venta;
+  return lista; // A
 }
 
 /** Tipos de precio ofrecidos en la UI (sin 'costo', que queda solo como histórico). */
 const TIPOS_PRECIO_UI: TipoPrecioVenta[] = ["minorista", "mayorista", "distribuidor"];
 
 const tipoPrecioLabel: Record<TipoPrecioVenta, string> = {
-  minorista: "Minorista",
-  mayorista: "Mayorista",
-  distribuidor: "Distribuidor",
+  minorista: "A (Lista)",
+  mayorista: "B (+5%)",
+  distribuidor: "C (+10%)",
   costo: "Al costo",
 };
 
@@ -1282,7 +1287,7 @@ export default function NuevaVentaPage() {
                                 return (
                                   <button key={tp} type="button" onClick={() => changeTipoPrecioItem(idx, tp)}
                                     className={`px-2 py-1.5 text-[11px] font-semibold transition-colors ${sel ? "bg-[#0EA5E9] text-white" : "bg-white text-slate-600 hover:bg-slate-100"}`}>
-                                    {tp === "minorista" ? "Min" : tp === "mayorista" ? "May" : "Dist"}
+                                    {tp === "minorista" ? "A" : tp === "mayorista" ? "B" : "C"}
                                   </button>
                                 );
                               })}
@@ -1345,6 +1350,25 @@ export default function NuevaVentaPage() {
                                 Bajo el costo ({formatGs(costoMin)})
                               </div>
                             )}
+                            {/* Descuento por línea sobre el precio del nivel elegido (A/B/C) */}
+                            <div className="mt-1 flex justify-end gap-1">
+                              {[0, 3, 5].map((d) => {
+                                const base = item.precio_venta_original || item.precio_venta || 0;
+                                const cur = base > 0 ? Math.round((1 - item.precio_venta / base) * 100) : 0;
+                                const sel = cur === d;
+                                return (
+                                  <button
+                                    key={d}
+                                    type="button"
+                                    onClick={() => updateItemCampo(idx, { precio_venta: Math.round(base * (1 - d / 100)) })}
+                                    className={`rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors ${sel ? "bg-[#0EA5E9] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                                    title={d === 0 ? "Sin descuento" : `Descuento ${d}%`}
+                                  >
+                                    {d === 0 ? "0%" : `-${d}%`}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </td>
                           {/* Stock */}
                           <td className="px-3 py-2.5 text-right">
