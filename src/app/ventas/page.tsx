@@ -372,7 +372,15 @@ export default function VentasPage() {
                           >
                             Imprimir
                           </a>
-                          {/* Boton Factura oculto: facturacion electronica desactivada para Ferrecolor */}
+                          <a
+                            href={`/api/ventas/${v.id}/factura?auto=1`}
+                            target="_blank"
+                            rel="noopener"
+                            className="inline-flex items-center justify-center rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-colors"
+                            title="Emitir / ver factura electrónica"
+                          >
+                            Factura
+                          </a>
                           {v.genera_nota_remision && (
                             <a
                               href={`/api/ventas/${v.id}/ticket?tipo=remision`}

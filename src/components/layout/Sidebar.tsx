@@ -12,6 +12,7 @@ import {
   Users,
   FileText,
   UserCog,
+  Settings,
   Building2,
   ChevronDown,
   ChevronRight,
@@ -101,6 +102,10 @@ const MENU_STRUCTURE: MenuItem[] = [
   { key: "notas_credito", slug: "notas_credito", label: "Notas de crédito", href: "/notas-credito", icon: ScrollText },
   { key: "reportes", slug: "reportes", label: "Reportes", href: "/reportes", icon: BarChart3 },
   { key: "usuarios", slug: "usuarios", label: "Usuarios", href: "/usuarios", icon: UserCog },
+  { key: "configuracion", slug: "configuracion", label: "Configuración", href: "/configuracion", icon: Settings, children: [
+    { label: "Facturación", href: "/configuracion/facturacion" },
+    { label: "Facturación electrónica", href: "/configuracion/facturacion-electronica" },
+  ]},
 ];
 
 /**
@@ -113,7 +118,7 @@ const MENU_FAMILIES: { id: string; titulo: string; keys: string[] }[] = [
   { id: "comercial", titulo: "Comercial", keys: ["clientes", "ventas", "pagos", "presupuestos"] },
   { id: "finanzas", titulo: "Finanzas", keys: ["gastos", "notas_credito", "reportes"] },
   { id: "operaciones", titulo: "Operaciones", keys: ["inventario", "compras"] },
-  { id: "administracion", titulo: "Administración", keys: ["usuarios"] },
+  { id: "administracion", titulo: "Administración", keys: ["usuarios", "configuracion"] },
 ];
 
 function modulosSyntheticFromMenu(): ModuloEmpresa[] {
