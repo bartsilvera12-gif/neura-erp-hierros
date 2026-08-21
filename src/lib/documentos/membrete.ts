@@ -15,7 +15,7 @@ export const EMPRESA_DOC = {
   actividad: [
     "Venta de hierros, caños, chapas, varillas y perfiles",
   ],
-  telefono: "0992 976 141",
+  telefono: "0992 558 631",
   direccion: ["Villa Hayes · Paraguay"],
   /** Logo del cliente (alta calidad, sin fondo). Servido desde /public. */
   logoUrl: "/brand/hierros-logo.png",

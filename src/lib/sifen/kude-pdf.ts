@@ -339,7 +339,7 @@ export async function buildKudePdfBuffer(input: BuildKudePdfInput): Promise<Buff
   // Si el XML viene vacío O con un placeholder heredado del clon (ej.
   // "021000000" / "...configurar-empresa..."), se usa el contacto real de
   // HIERROS VH. Nunca cae al de Neura.
-  const HIERROS_TEL = "0992 976 141";
+  const HIERROS_TEL = "0992 558 631";
   const HIERROS_EMAIL = "hierrosvh@gmail.com";
   const esPlaceholderContacto = (v: string): boolean => {
     const s = v.trim().toLowerCase();
