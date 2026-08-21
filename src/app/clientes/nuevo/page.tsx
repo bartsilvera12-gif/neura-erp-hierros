@@ -320,16 +320,9 @@ function NuevoClienteForm() {
           }
         : {};
 
-    // Facturación → receptor SIFEN B2B (evita el rechazo 0301 de la SET).
-    // Empresa con RUC = contribuyente; Persona solo si marca el checkbox y carga RUC.
-    // El receptor SIFEN se arma desde sifen_receptor_manual + naturaleza + ruc (no desde es_contribuyente).
-    const esContribuyenteEfectivo =
-      form.tipo_cliente === "empresa" ? Boolean(form.ruc.trim()) : form.es_contribuyente;
-    const contribuyenteSifenCreate: Partial<Parameters<typeof apiCreateCliente>[0]> =
-      !form.sifen_receptor_manual && esContribuyenteEfectivo && form.ruc.trim()
-        ? { sifen_receptor_manual: true, sifen_receptor_naturaleza: "contribuyente_paraguayo" }
-        : {};
-
+    // Facturación B2B: alcanza con cargar el RUC del cliente. El receptor SIFEN se
+    // detecta AUTOMÁTICAMENTE del RUC (contribuyente) — NO forzamos el modo manual,
+    // que exigiría además el tipo de operación (iTiOpe) y rompería la emisión del DE.
     setGuardando(true);
 
     const creado = await apiCreateCliente({
@@ -355,7 +348,6 @@ function NuevoClienteForm() {
       vendedor_asignado: form.vendedor_asignado.trim().toUpperCase() || undefined,
       vendedor_usuario_id: form.vendedor_usuario_id.trim() || null,
       ...sifenManualCreate,
-      ...contribuyenteSifenCreate,
     });
 
     if (creado.ok !== true) {

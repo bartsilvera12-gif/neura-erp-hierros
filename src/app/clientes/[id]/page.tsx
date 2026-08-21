@@ -632,15 +632,11 @@ export default function ClienteDetailPage() {
           sifen_descripcion_tipo_doc: null,
         } satisfies Partial<Cliente>);
 
-    // Facturación → receptor SIFEN B2B (evita el rechazo 0301 de la SET), salvo que el
-    // modo manual SIFEN esté activo. Empresa con RUC = contribuyente; Persona solo si marca el checkbox.
-    const esContribuyenteEfectivo =
-      form.tipo_cliente === "empresa" ? Boolean(form.ruc.trim()) : form.es_contribuyente;
-    const contribuyenteSifenPayload: Partial<Cliente> = !form.sifen_receptor_manual
-      ? esContribuyenteEfectivo && form.ruc.trim()
-        ? { sifen_receptor_manual: true, sifen_receptor_naturaleza: "contribuyente_paraguayo" }
-        : { sifen_receptor_manual: false, sifen_receptor_naturaleza: null }
-      : {};
+    // Facturación B2B: alcanza con el RUC del cliente; el receptor SIFEN se detecta
+    // AUTOMÁTICAMENTE del RUC. NO forzamos modo manual (exigiría el tipo de operación
+    // iTiOpe). Si el modo manual no está activo, sifenManualPayload ya deja el flag en
+    // false, así que re-guardar un cliente limpia un manual mal seteado.
+    const contribuyenteSifenPayload: Partial<Cliente> = {};
     try {
       await updateCliente(id, {
         tipo_cliente:        form.tipo_cliente,
