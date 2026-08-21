@@ -195,6 +195,9 @@ export async function POST(request: NextRequest) {
       nombre_contacto,
       ruc,
       documento,
+      nombre_facturacion,
+      nivel_precio,
+      es_contribuyente,
       telefono,
       email,
       direccion,
@@ -261,6 +264,13 @@ export async function POST(request: NextRequest) {
       nombre_contacto:      nombre_contacto.trim(),
       ruc:                  ruc?.trim() || null,
       documento:            documento?.trim() || null,
+      nombre_facturacion:   typeof nombre_facturacion === "string" && nombre_facturacion.trim()
+                              ? nombre_facturacion.trim().toUpperCase()
+                              : null,
+      nivel_precio:         ["minorista", "mayorista", "distribuidor"].includes(String(nivel_precio))
+                              ? String(nivel_precio)
+                              : "minorista",
+      es_contribuyente:     es_contribuyente === true,
       telefono:             telefono?.trim() || null,
       email:                email?.trim() || null,
       direccion:            direccion?.trim() || null,

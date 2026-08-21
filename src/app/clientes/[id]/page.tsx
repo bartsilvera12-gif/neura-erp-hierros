@@ -191,8 +191,11 @@ export default function ClienteDetailPage() {
     tipo_cliente:        "empresa" as Cliente["tipo_cliente"],
     empresa:             "",
     nombre_contacto:     "",
+    nombre_facturacion:  "",
+    nivel_precio:        "minorista" as "minorista" | "mayorista" | "distribuidor",
     ruc:                 "",
     documento:           "",
+    es_contribuyente:    false,
     telefono:            "",
     telefono_secundario: "",
     email:               "",
@@ -348,8 +351,11 @@ export default function ClienteDetailPage() {
         tipo_cliente:        c.tipo_cliente,
         empresa:             c.empresa             ?? "",
         nombre_contacto:     c.nombre_contacto,
+        nombre_facturacion:  c.nombre_facturacion  ?? "",
+        nivel_precio:        (c.nivel_precio ?? "minorista") as "minorista" | "mayorista" | "distribuidor",
         ruc:                 c.ruc                 ?? "",
         documento:           c.documento           ?? "",
+        es_contribuyente:    c.es_contribuyente === true,
         telefono:            c.telefono            ?? "",
         telefono_secundario: c.telefono_secundario ?? "",
         email:               c.email               ?? "",
@@ -511,7 +517,7 @@ export default function ClienteDetailPage() {
     }
   }, [form.condicion_pago, id]);
 
-  const upper = ["empresa", "nombre_contacto", "ciudad", "pais", "vendedor_asignado", "condicion_pago", "direccion", "sifen_codigo_pais"];
+  const upper = ["empresa", "nombre_contacto", "nombre_facturacion", "ciudad", "pais", "vendedor_asignado", "condicion_pago", "direccion", "sifen_codigo_pais"];
   const lower = ["email", "email_secundario"];
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
@@ -625,13 +631,26 @@ export default function ClienteDetailPage() {
           sifen_num_casa_de: null,
           sifen_descripcion_tipo_doc: null,
         } satisfies Partial<Cliente>);
+
+    // Facturación → receptor SIFEN B2B (evita el rechazo 0301 de la SET), salvo que el
+    // modo manual SIFEN esté activo. Empresa con RUC = contribuyente; Persona solo si marca el checkbox.
+    const esContribuyenteEfectivo =
+      form.tipo_cliente === "empresa" ? Boolean(form.ruc.trim()) : form.es_contribuyente;
+    const contribuyenteSifenPayload: Partial<Cliente> = !form.sifen_receptor_manual
+      ? esContribuyenteEfectivo && form.ruc.trim()
+        ? { sifen_receptor_manual: true, sifen_receptor_naturaleza: "contribuyente_paraguayo" }
+        : { sifen_receptor_manual: false, sifen_receptor_naturaleza: null }
+      : {};
     try {
       await updateCliente(id, {
         tipo_cliente:        form.tipo_cliente,
         empresa:             form.tipo_cliente === "empresa" ? form.empresa.trim().toUpperCase() : undefined,
         nombre_contacto:     form.nombre_contacto.trim().toUpperCase(),
+        nombre_facturacion:  form.nombre_facturacion.trim().toUpperCase() || null,
+        nivel_precio:        form.nivel_precio,
         ruc:                 form.ruc.trim()                 || undefined,
         documento:           form.documento.trim()           || undefined,
+        es_contribuyente:    form.tipo_cliente === "persona" ? form.es_contribuyente : false,
         telefono:            form.telefono.trim()            || undefined,
         telefono_secundario: form.telefono_secundario.trim() || undefined,
         email:               form.email.trim()               || undefined,
@@ -651,6 +670,7 @@ export default function ClienteDetailPage() {
         estado:              form.estado,
         usa_nota_remision:   form.usa_nota_remision,
         ...sifenManualPayload,
+        ...contribuyenteSifenPayload,
       });
     } catch (err) {
       const m = err instanceof Error ? err.message : String(err);
@@ -1509,6 +1529,47 @@ export default function ClienteDetailPage() {
                   </div>
                 )}
 
+                <div>
+                  <label className={labelClass}>
+                    Nombre para facturación <span className="text-gray-400 font-normal">(opcional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="nombre_facturacion"
+                    value={form.nombre_facturacion}
+                    onChange={handleChange}
+                    placeholder="Ej: Nombre del cónyuge / hijo/a"
+                    className={`${inputClass} uppercase`}
+                  />
+                  <p className="mt-1.5 text-xs text-gray-400">
+                    Solo si la factura se emite a un nombre distinto de la Razón Social. Si queda vacío, se usa
+                    la Razón Social o el nombre de contacto.
+                  </p>
+                </div>
+
+                <div>
+                  <label className={labelClass}>Nivel de precio</label>
+                  <select
+                    name="nivel_precio"
+                    value={form.nivel_precio}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        nivel_precio: e.target.value as "minorista" | "mayorista" | "distribuidor",
+                      }))
+                    }
+                    className={inputClass}
+                  >
+                    <option value="minorista">Minorista</option>
+                    <option value="mayorista">Mayorista</option>
+                    <option value="distribuidor">Distribuidor</option>
+                  </select>
+                  <p className="mt-1.5 text-xs text-gray-400">
+                    Se usa como precio por defecto al agregar productos en presupuestos, pedidos y ventas.
+                    Igual se puede cambiar en cada línea.
+                  </p>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className={labelClass}>{form.tipo_cliente === "empresa" ? "Persona de contacto" : "Nombre completo"}</label>
@@ -1523,6 +1584,48 @@ export default function ClienteDetailPage() {
                     )}
                   </div>
                 </div>
+                {form.tipo_cliente === "persona" && (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <label className="flex items-start gap-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        name="es_contribuyente"
+                        checked={form.es_contribuyente}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setForm((prev) => ({
+                            ...prev,
+                            es_contribuyente: checked,
+                            ruc: checked ? prev.ruc : "",
+                          }));
+                        }}
+                        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#0EA5E9] focus:ring-[#0EA5E9]"
+                      />
+                      <span>
+                        <span className="font-medium">Es contribuyente inscripto en la SET</span>
+                        <span className="mt-0.5 block text-xs text-slate-500">
+                          Marcalo solo si esta persona está registrada como contribuyente en Marangatu. Con esta opción activada y RUC cargado, la factura sale como B2B (evita el rechazo 0301 de la SET).
+                        </span>
+                      </span>
+                    </label>
+                    {form.es_contribuyente && (
+                      <div className="mt-3">
+                        <label className={labelClass}>RUC de la persona</label>
+                        <input
+                          type="text"
+                          name="ruc"
+                          value={form.ruc}
+                          onChange={handleChange}
+                          placeholder="Ej: 2431868-0"
+                          className={inputClass}
+                        />
+                        <p className="mt-1 text-xs text-slate-500">
+                          En Paraguay el RUC de persona física es la CI + dígito verificador.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </section>
 
               {/* Contacto */}

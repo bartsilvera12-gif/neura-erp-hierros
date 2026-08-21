@@ -32,6 +32,13 @@ export interface Cliente {
   ruc?:                string;
   documento?:          string;          // CI / pasaporte (persona)
 
+  /** Nombre alternativo para emitir la factura (opcional). Si vacío se usa razón social / contacto. */
+  nombre_facturacion?: string | null;
+  /** Nivel de precio por defecto al cargar productos (presupuestos/pedidos/ventas). */
+  nivel_precio?:       "minorista" | "mayorista" | "distribuidor";
+  /** Persona contribuyente inscripta en la SET (con RUC → factura B2B, evita rechazo 0301). */
+  es_contribuyente?:   boolean;
+
   telefono?:           string;
   telefono_secundario?: string;
   email?:              string;
