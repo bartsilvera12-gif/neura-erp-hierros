@@ -108,11 +108,19 @@ function formatMonto(nStr: string, moneda: string): string {
 }
 
 function readLogoBytes(): Uint8Array | null {
-  const p = path.join(process.cwd(), "public", "logo-neura.png");
-  try {
-    if (fs.existsSync(p)) return new Uint8Array(fs.readFileSync(p));
-  } catch {
-    /* ignore */
+  // Fallback del logo del KuDE para HIERROS VH cuando la empresa no configuró
+  // un logo propio en `empresa_sifen_config.kude_logo_path`. Antes usaba el logo
+  // de Neura; en este tenant el default es la marca HIERROS.
+  const candidates = [
+    path.join(process.cwd(), "public", "brand", "hierros-logo.png"),
+    path.join(process.cwd(), "public", "logo-neura.png"),
+  ];
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) return new Uint8Array(fs.readFileSync(p));
+    } catch {
+      /* ignore */
+    }
   }
   return null;
 }
