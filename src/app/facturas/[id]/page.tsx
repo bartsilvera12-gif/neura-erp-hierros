@@ -178,12 +178,23 @@ function FacturaDetalleInner() {
           </p>
         </div>
         <div className="flex gap-2 print:hidden">
+          {resumen?.factura_electronica?.estado_sifen === "aprobado" && (
+            <a
+              href={`/api/facturas/${id}/sifen/kude`}
+              target="_blank"
+              rel="noopener"
+              className="text-xs font-semibold px-3 py-2 rounded-lg bg-[#0EA5E9] text-white hover:bg-[#0284C7]"
+              title="Abrir el KUDE (PDF legal de SET) para imprimir o descargar"
+            >
+              Imprimir KUDE (factura legal)
+            </a>
+          )}
           <button
             type="button"
             onClick={() => window.print()}
             className="text-xs font-semibold px-3 py-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50"
           >
-            Imprimir
+            Imprimir pantalla
           </button>
         </div>
       </div>
