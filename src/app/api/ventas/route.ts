@@ -17,6 +17,7 @@ interface VentaRow {
   plazo_dias: number | null;
   fecha: string;
   usuario_nombre?: string | null;
+  factura_id?: string | null;
 }
 
 interface VentaItemRow {
@@ -64,12 +65,47 @@ export async function GET(request: NextRequest) {
     const ventasQ = await ctx.supabase
       .from("ventas")
       .select(
-        "id, empresa_id, numero_control, moneda, tipo_cambio, subtotal, monto_iva, total, tipo_venta, plazo_dias, metodo_pago, fecha, genera_nota_remision, nota_remision_numero, usuario_nombre, estado, anulada_at, anulada_motivo"
+        "id, empresa_id, numero_control, moneda, tipo_cambio, subtotal, monto_iva, total, tipo_venta, plazo_dias, metodo_pago, fecha, genera_nota_remision, nota_remision_numero, usuario_nombre, estado, anulada_at, anulada_motivo, factura_id"
       )
       .eq("empresa_id", empresaId)
       .order("fecha", { ascending: false })
       .limit(500);
     if (ventasQ.error) throw new Error(ventasQ.error.message);
+
+    // Puente venta→factura: para las ventas que ya tienen factura ERP, cargar en
+    // batch el numero_factura (tabla facturas) y el estado SIFEN (factura_electronica).
+    // Best-effort: si estas consultas fallan, el listado sigue sirviendo sin esos datos.
+    const facturaIds = [
+      ...new Set(
+        ((ventasQ.data ?? []) as VentaRow[])
+          .map((v) => v.factura_id)
+          .filter((x): x is string => !!x)
+      ),
+    ];
+    const numeroFacturaByIdMap = new Map<string, string>();
+    const estadoSifenByFacturaMap = new Map<string, string>();
+    if (facturaIds.length > 0) {
+      const facQ = await ctx.supabase
+        .from("facturas")
+        .select("id, numero_factura")
+        .eq("empresa_id", empresaId)
+        .in("id", facturaIds);
+      if (!facQ.error) {
+        for (const row of (facQ.data ?? []) as Array<{ id: string; numero_factura?: string | null }>) {
+          if (row.numero_factura) numeroFacturaByIdMap.set(row.id, row.numero_factura);
+        }
+      }
+      const feQ = await ctx.supabase
+        .from("factura_electronica")
+        .select("factura_id, estado_sifen")
+        .eq("empresa_id", empresaId)
+        .in("factura_id", facturaIds);
+      if (!feQ.error) {
+        for (const row of (feQ.data ?? []) as Array<{ factura_id: string; estado_sifen?: string | null }>) {
+          if (row.estado_sifen) estadoSifenByFacturaMap.set(row.factura_id, row.estado_sifen);
+        }
+      }
+    }
 
     const itemsQ = await ctx.supabase
       .from("ventas_items")
@@ -115,6 +151,9 @@ export async function GET(request: NextRequest) {
         nota_remision_numero: (r as unknown as { nota_remision_numero?: string | null }).nota_remision_numero ?? null,
         fecha: r.fecha,
         usuario_nombre: r.usuario_nombre ?? null,
+        factura_id: r.factura_id ?? null,
+        numero_factura: r.factura_id ? numeroFacturaByIdMap.get(r.factura_id) ?? null : null,
+        factura_estado_sifen: r.factura_id ? estadoSifenByFacturaMap.get(r.factura_id) ?? null : null,
         estado: ((): "activa" | "anulada" | "parcialmente_devuelta" | "devuelta_total" => {
           const e = (r as unknown as { estado?: string }).estado;
           if (e === "anulada") return "anulada";

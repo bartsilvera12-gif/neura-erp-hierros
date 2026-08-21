@@ -9,6 +9,7 @@ import { API_ERRORS } from "@/lib/api/errors";
 import type { Venta, LineaVenta } from "@/lib/ventas/types";
 import { createServiceRoleClientWithDbSchema } from "@/lib/supabase/empresa-data-schema";
 import { estaFacturado, marcarFacturado } from "@/lib/caja/facturacion";
+import { getFacturacionModo } from "@/lib/facturacion/server/facturacion-modo-pg";
 
 /** Error tipado: el pedido que se intenta facturar ya tiene venta. */
 class PedidoYaFacturadoError extends Error {
@@ -143,6 +144,9 @@ export async function POST(request: NextRequest) {
         ? null
         : String(o.observaciones).slice(0, 4000);
     const permitirSinStock = o.permitir_sin_stock === true;
+    // El cajero eligió "Factura" (vs "Solo ticket"). La emisión real de factura ERP
+    // se decide más abajo, solo si además la empresa está en modo 'sifen'.
+    const emitirFacturaFlag = o.emitir_factura === true;
     // Pedido (proyecto) que se está facturando desde Caja. Opcional.
     const pedidoId = typeof o.pedido_id === "string" && o.pedido_id.trim() ? o.pedido_id.trim() : null;
     // Pedido del modulo Consulta (tabla pedidos_caja). Opcional, independiente
@@ -208,6 +212,24 @@ export async function POST(request: NextRequest) {
 
     const schema = await fetchDataSchemaForEmpresaId(auth.empresa_id);
 
+    // Puente Venta → Factura ERP: solo se emite factura si el cajero eligió "Factura"
+    // Y la empresa está en modo 'sifen'. En cualquier otro modo (sin_factura_fiscal /
+    // autoimpresor) la venta sigue exactamente como hoy (ticket), sin tocar `facturas`.
+    let emitirFactura = false;
+    if (emitirFacturaFlag) {
+      try {
+        const modo = await getFacturacionModo(schema, auth.empresa_id);
+        emitirFactura = modo.modo === "sifen";
+      } catch (e) {
+        // Si no se puede leer la config, NO emitimos (conservador): la venta va como ticket.
+        console.error(
+          "[ventas/create] no se pudo leer facturacion_modo (venta sigue como ticket):",
+          e instanceof Error ? e.message : e
+        );
+        emitirFactura = false;
+      }
+    }
+
     // Anti doble facturación: si se factura un pedido, verificar que aún no tenga venta.
     // (Se valida ANTES de crear la venta para no descontar stock por un pedido ya facturado.)
     const sbPedido = pedidoId ? createServiceRoleClientWithDbSchema(schema) : null;
@@ -227,27 +249,29 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const { ventaId, numeroControl, fechaIso, notaRemisionNumero } = await createVentaTransaccionalPg({
-      schema,
-      empresaId: auth.empresa_id,
-      clienteId,
-      observaciones,
-      moneda,
-      tipoCambio,
-      tipoVenta,
-      plazoDias: Number.isFinite(plazoDias as number) ? plazoDias : null,
-      metodoPago,
-      items,
-      subtotalDeclarado,
-      montoIvaDeclarado,
-      totalDeclarado,
-      pedidoCocina,
-      permitirSinStock,
-      generaNotaRemision: o.genera_nota_remision === true,
-      cajaId: o.caja_id != null && String(o.caja_id).trim() !== "" ? String(o.caja_id) : null,
-      usuarioId: auth.usuarioCatalogId ?? null,
-      usuarioNombre: auth.nombre ?? auth.user?.email ?? null,
-    });
+    const { ventaId, numeroControl, fechaIso, notaRemisionNumero, facturaId, numeroFactura, facturaWarning } =
+      await createVentaTransaccionalPg({
+        schema,
+        empresaId: auth.empresa_id,
+        clienteId,
+        observaciones,
+        moneda,
+        tipoCambio,
+        tipoVenta,
+        plazoDias: Number.isFinite(plazoDias as number) ? plazoDias : null,
+        metodoPago,
+        items,
+        subtotalDeclarado,
+        montoIvaDeclarado,
+        totalDeclarado,
+        pedidoCocina,
+        permitirSinStock,
+        generaNotaRemision: o.genera_nota_remision === true,
+        cajaId: o.caja_id != null && String(o.caja_id).trim() !== "" ? String(o.caja_id) : null,
+        usuarioId: auth.usuarioCatalogId ?? null,
+        usuarioNombre: auth.nombre ?? auth.user?.email ?? null,
+        emitirFactura,
+      });
 
     // Vincular el pedido facturado con la venta creada (Caja). Trazabilidad:
     // presupuesto → pedido → venta. Marca el pedido como 'facturado' con venta_id.
@@ -388,7 +412,17 @@ export async function POST(request: NextRequest) {
       nota_remision_numero: notaRemisionNumero,
     });
 
-    return NextResponse.json(successResponse({ venta, nota_remision_numero: notaRemisionNumero }));
+    return NextResponse.json(
+      successResponse({
+        venta,
+        nota_remision_numero: notaRemisionNumero,
+        // Puente venta→factura: si se emitió factura ERP, la UI redirige a
+        // /facturas/[id]?auto=1. Si el puente no aplicó o falló, factura=null y
+        // factura_warning explica por qué (la venta igual se registró).
+        factura: facturaId ? { id: facturaId, numero_factura: numeroFactura ?? null } : null,
+        factura_warning: facturaWarning ?? null,
+      })
+    );
   } catch (err) {
     // Falta de stock sin autorizar: 409 con el detalle de faltantes para que la UI
     // muestre el modal de confirmación y reintente con permitir_sin_stock=true.

@@ -13,7 +13,17 @@ export type FaltanteStock = {
 };
 
 export type ResultadoGuardarVenta =
-  | { success: true; venta: Venta }
+  | {
+      success: true;
+      venta: Venta;
+      /**
+       * Factura ERP creada por el puente venta→factura (SIFEN). La UI redirige a
+       * /facturas/[id]?auto=1 cuando esto viene seteado. Si es null, la venta se
+       * registró sin factura (solo ticket, o el puente no aplicó/falló → ver `facturaWarning`).
+       */
+      factura?: { id: string; numero_factura: string | null } | null;
+      facturaWarning?: string | null;
+    }
   | { success: false; error: string; faltantes?: FaltanteStock[] };
 
 /** Modalidad del pedido (instancia gastronómica En lo de Mari). */
@@ -72,7 +82,13 @@ export interface PagoLinea {
 }
 
 export async function saveVenta(
-  datos: Omit<Venta, "id" | "numero_control" | "fecha"> & { cliente_id?: string | null; genera_nota_remision?: boolean },
+  datos: Omit<Venta, "id" | "numero_control" | "fecha"> & {
+    cliente_id?: string | null;
+    genera_nota_remision?: boolean;
+    /** Si true, el cajero eligió "Factura": activa el puente venta→factura ERP
+     *  (la emisión real solo ocurre si la empresa está en modo 'sifen'). Default false. */
+    emitir_factura?: boolean;
+  },
   pedidoCocina?: PedidoCocinaInput,
   pagoDetalle?: PagoDetalleInput | null,
   opts?: {
@@ -109,6 +125,7 @@ export async function saveVenta(
         pagos: Array.isArray(opts?.pagos) && opts.pagos.length > 0 ? opts.pagos : null,
         permitir_sin_stock: opts?.permitirSinStock === true,
         genera_nota_remision: datos.genera_nota_remision === true,
+        emitir_factura: datos.emitir_factura === true,
         pedido_id: opts?.pedidoId ?? null,
         pedido_caja_id: opts?.pedidoCajaId ?? null,
         caja_id: opts?.cajaId ?? null,
@@ -117,7 +134,11 @@ export async function saveVenta(
 
     const json = (await res.json()) as {
       success?: boolean;
-      data?: { venta?: Venta };
+      data?: {
+        venta?: Venta;
+        factura?: { id: string; numero_factura: string | null } | null;
+        factura_warning?: string | null;
+      };
       error?: string;
       faltantes?: FaltanteStock[];
     };
@@ -130,7 +151,12 @@ export async function saveVenta(
       };
     }
 
-    return { success: true, venta: json.data.venta };
+    return {
+      success: true,
+      venta: json.data.venta,
+      factura: json.data.factura ?? null,
+      facturaWarning: json.data.factura_warning ?? null,
+    };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error de red.";
     return { success: false, error: msg };

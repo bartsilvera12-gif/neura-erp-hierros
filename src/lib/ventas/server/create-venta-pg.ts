@@ -5,6 +5,7 @@ import {
   mapPresentacion,
 } from "@/lib/inventario/presentaciones-server";
 import type { ProductoPresentacion } from "@/lib/inventario/presentaciones-types";
+import { obtenerSiguienteNumeroFacturaEmpresa } from "@/lib/facturacion/factura-suscripcion-servidor";
 
 /** Un faltante de stock detectado al validar la venta. */
 export interface FaltanteStock {
@@ -91,6 +92,18 @@ export interface CreateVentaPgParams {
   /** Usuario que registra la venta (auditoría de movimientos de inventario). */
   usuarioId?: string | null;
   usuarioNombre?: string | null;
+  /**
+   * Si true, activa el puente Venta → Factura ERP (SIFEN legal): crea una fila
+   * `facturas` FAC-XXXXXX, sus `factura_items` y linkea `ventas.factura_id`.
+   * El detalle /facturas/[id] usa después el panel electrónico para firmar/enviar.
+   *
+   * Default false: la venta se registra SOLO como ticket (comportamiento actual),
+   * no toca `facturas` y `ventas.factura_id` queda null. La ruta activa este flag
+   * únicamente cuando el cajero elige "Factura" Y la empresa está en modo 'sifen'.
+   * Requiere cliente (SIFEN necesita receptor con RUC/razón social). Si falta el
+   * cliente, no se rompe la venta: se devuelve `facturaWarning` y queda como ticket.
+   */
+  emitirFactura?: boolean;
 }
 
 function recalcTotals(items: CreateVentaItemInput[]) {
@@ -125,7 +138,16 @@ const TOL = 2;
  */
 export async function createVentaTransaccionalPg(
   params: CreateVentaPgParams
-): Promise<{ ventaId: string; numeroControl: string; fechaIso: string; notaRemisionNumero: string | null; cuentaPorCobrarId?: string | null }> {
+): Promise<{
+  ventaId: string;
+  numeroControl: string;
+  fechaIso: string;
+  notaRemisionNumero: string | null;
+  cuentaPorCobrarId?: string | null;
+  facturaId?: string | null;
+  numeroFactura?: string | null;
+  facturaWarning?: string | null;
+}> {
   const items = params.items;
   if (!items.length) {
     throw new Error("La venta debe tener al menos un ítem.");
@@ -780,6 +802,111 @@ export async function createVentaTransaccionalPg(
       cuentaPorCobrarId = String((insCxc.data as { id: string }).id);
     }
 
+    // ── Puente Venta → Factura ERP (SIFEN legal) ───────────────────────────
+    // Cuando `emitirFactura===true` (el cajero eligió "Factura" y la empresa está
+    // en modo 'sifen', validado en la ruta) creamos una factura ERP FAC-XXXXXX con
+    // sus líneas y dejamos `ventas.factura_id` linkeado. Luego /facturas/[id] usa el
+    // panel electrónico para generar el borrador SIFEN, firmar, enviar e imprimir KUDE.
+    //
+    // Best-effort aislado: si el puente falla, la venta YA está creada y NO se
+    // revierte — se devuelve `facturaWarning` y la venta queda como ticket.
+    //
+    // Requisito fiscal: la factura ERP exige cliente (facturas.cliente_id es NOT NULL
+    // y el payload SIFEN necesita receptor con RUC/razón social). Si la venta no tiene
+    // cliente, se rechaza SOLO la emisión (no la venta) con un warning claro.
+    let facturaId: string | null = null;
+    let numeroFactura: string | null = null;
+    let facturaWarning: string | null = null;
+    if (params.emitirFactura === true) {
+      if (!params.clienteId) {
+        facturaWarning =
+          "Venta registrada como ticket: para emitir factura electrónica hay que seleccionar un cliente (SIFEN requiere receptor).";
+      } else {
+        try {
+          // 1) Snapshot de razón social / RUC del receptor. Prioridad:
+          //    nombre_facturacion → empresa → nombre_contacto → nombre.
+          let razonSocial: string | null = null;
+          let rucSnap: string | null = null;
+          const cliQ = await sb
+            .from("clientes")
+            .select("empresa, nombre, nombre_contacto, nombre_facturacion, ruc")
+            .eq("id", params.clienteId)
+            .eq("empresa_id", params.empresaId)
+            .maybeSingle();
+          const c = cliQ.data as Record<string, string | null> | null;
+          if (c) {
+            const s = (v: string | null | undefined) =>
+              typeof v === "string" && v.trim() ? v.trim() : null;
+            razonSocial =
+              s(c.nombre_facturacion) || s(c.empresa) || s(c.nombre_contacto) || s(c.nombre);
+            rucSnap = s(c.ruc);
+          }
+
+          // 2) Próximo número de factura con el helper canónico (RPC transaccional
+          //    next_numero_factura_empresa + fallback). No se inventa numeración nueva.
+          numeroFactura = await obtenerSiguienteNumeroFacturaEmpresa(sb, params.empresaId);
+
+          // 3) Insert facturas. Solo columnas existentes en el schema ferrecolor
+          //    + las aditivas del puente (cliente_razon_social/cliente_ruc/origen_venta_id).
+          const fechaYmd = fechaIso.slice(0, 10);
+          const facPayload: Record<string, unknown> = {
+            empresa_id: params.empresaId,
+            cliente_id: params.clienteId,
+            numero_factura: numeroFactura,
+            fecha: fechaYmd,
+            fecha_vencimiento: fechaYmd,
+            monto: calc.total,
+            saldo: params.tipoVenta === "CREDITO" ? calc.total : 0,
+            estado: params.tipoVenta === "CREDITO" ? "Pendiente" : "Pagado",
+            tipo: params.tipoVenta === "CREDITO" ? "credito" : "contado",
+            moneda: params.moneda === "USD" ? "USD" : "GS",
+            cliente_razon_social: razonSocial,
+            cliente_ruc: rucSnap,
+            origen_venta_id: ventaId,
+          };
+          const insFac = await sb.from("facturas").insert(facPayload).select("id").single();
+          if (insFac.error) throw new Error(insFac.error.message);
+          facturaId = String((insFac.data as { id: string }).id);
+
+          // 4) factura_items — una fila por línea. Los montos ya reflejan la tasa
+          //    de IVA elegida (el builder SIFEN infiere la tasa desde subtotal/iva);
+          //    tipo_iva se guarda además como dato consistente con ventas_items.
+          const itemsFacRows = items.map((line) => ({
+            empresa_id: params.empresaId,
+            factura_id: facturaId,
+            descripcion: line.producto_nombre,
+            cantidad: line.cantidad,
+            precio_unitario: line.precio_venta,
+            subtotal: line.subtotal,
+            iva: line.monto_iva,
+            total: line.total_linea,
+            tipo_iva: line.tipo_iva,
+          }));
+          const insFacItems = await sb.from("factura_items").insert(itemsFacRows);
+          if (insFacItems.error) throw new Error(insFacItems.error.message);
+
+          // 5) Link venta → factura.
+          const linkUpd = await sb
+            .from("ventas")
+            .update({ factura_id: facturaId })
+            .eq("id", ventaId)
+            .eq("empresa_id", params.empresaId);
+          if (linkUpd.error) throw new Error(linkUpd.error.message);
+        } catch (bridgeErr) {
+          const msg = bridgeErr instanceof Error ? bridgeErr.message : String(bridgeErr);
+          facturaWarning = `Venta creada pero no se pudo generar la factura electrónica: ${msg}`;
+          // Rollback best-effort de la factura (los items caen en cascada por FK).
+          if (facturaId) {
+            try {
+              await sb.from("facturas").delete().eq("id", facturaId).eq("empresa_id", params.empresaId);
+            } catch {}
+          }
+          facturaId = null;
+          numeroFactura = null;
+        }
+      }
+    }
+
     // Evaluar cruce de tramo de comision (best-effort, no rompe la venta).
     // Calcula ganancia leyendo los movimientos SALIDA reciennsertados.
     try {
@@ -803,7 +930,16 @@ export async function createVentaTransaccionalPg(
       }
     } catch { /* silencioso */ }
 
-    return { ventaId, numeroControl, fechaIso, notaRemisionNumero, cuentaPorCobrarId };
+    return {
+      ventaId,
+      numeroControl,
+      fechaIso,
+      notaRemisionNumero,
+      cuentaPorCobrarId,
+      facturaId,
+      numeroFactura,
+      facturaWarning,
+    };
   } catch (err) {
     await rollback();
     throw err;

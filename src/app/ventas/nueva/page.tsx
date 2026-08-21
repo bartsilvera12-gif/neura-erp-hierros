@@ -168,6 +168,16 @@ export default function NuevaVentaPage() {
   const [tipoVenta, setTipoVenta] = useState<TipoVenta>("CONTADO");
   const [plazoDias, setPlazoDias] = useState("");
 
+  // Tipo de documento a emitir. Solo relevante si la empresa está en modo 'sifen':
+  //  - "factura": activa el puente venta→factura. Al confirmar, redirige a
+  //    /facturas/[id]?auto=1 (arranca el pipeline SIFEN).
+  //  - "ticket": registra la venta e imprime el comprobante, sin factura ERP.
+  // Default "ticket" para NO cambiar el comportamiento actual por accidente.
+  const [tipoDocumento, setTipoDocumento] = useState<"factura" | "ticket">("ticket");
+  // La empresa emite factura electrónica (modo 'sifen'). Se resuelve al montar;
+  // si es false, el selector de documento ni se muestra (flujo actual intacto).
+  const [modoSifen, setModoSifen] = useState(false);
+
   // Cliente (opcional). Si se selecciona, se envía cliente_id al crear la venta.
   type ClienteLite = { id: string; label: string; ruc: string | null; telefono: string | null; usa_nota_remision: boolean };
   const [clientes, setClientes] = useState<ClienteLite[]>([]);
@@ -312,6 +322,27 @@ export default function NuevaVentaPage() {
     getProductos().then((data) => {
       if (!cancelled) setProductos(data);
     });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Modo de facturación de la empresa. Si es 'sifen', mostramos el selector
+  // Factura|Ticket y por defecto proponemos "Factura". En cualquier otro modo,
+  // el selector no se muestra y la venta sigue el flujo de ticket actual.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetchWithSupabaseSession("/api/configuracion/facturacion-modo", { cache: "no-store" });
+        const json = (await res.json()) as { success?: boolean; data?: { facturacion_modo?: { modo?: string } } };
+        const esSifen = res.ok && json.success === true && json.data?.facturacion_modo?.modo === "sifen";
+        if (!cancelled && esSifen) {
+          setModoSifen(true);
+          setTipoDocumento("factura");
+        }
+      } catch {
+        /* best-effort: si falla, queda en modo ticket (comportamiento actual). */
+      }
+    })();
     return () => { cancelled = true; };
   }, []);
 
@@ -856,6 +887,9 @@ export default function NuevaVentaPage() {
           metodo_pago:  pagoMixto ? "efectivo" : metodoPago, // el backend lo marca 'mixto' si aplica
           cliente_id:   clienteIdFinal || null,
           genera_nota_remision: !!clienteIdFinal && generaNotaRemision,
+          // Puente venta→factura: solo cuando la empresa está en modo 'sifen' y el
+          // cajero eligió "Factura". El backend valida el modo de nuevo.
+          emitir_factura: modoSifen && tipoDocumento === "factura",
         },
         undefined,
         {
@@ -885,6 +919,15 @@ export default function NuevaVentaPage() {
         setErrorVenta(resultado.error);
         return;
       }
+      // Puente venta→factura (SIFEN): si el cajero eligió "Factura" y el backend
+      // creó la factura ERP, saltamos directo al panel /facturas/[id]?auto=1 que
+      // arranca el pipeline SIFEN (borrador → firma → envío → KUDE). Si el puente
+      // no aplicó o falló (resultado.factura null), seguimos el flujo de ticket.
+      if (modoSifen && tipoDocumento === "factura" && resultado.factura?.id) {
+        router.push(`/facturas/${resultado.factura.id}?auto=1`);
+        return;
+      }
+
       // Documentos de la venta. La nota de remisión se abre además del ticket
       // SOLO si la venta la genera (cliente con usa_nota_remision o toggle activo).
       const v = resultado.venta;
@@ -1107,6 +1150,32 @@ export default function NuevaVentaPage() {
                 </div>
               )}
             </div>
+
+            {/* Documento a emitir (solo cuando la empresa está en modo SIFEN):
+                Factura electrónica (puente a SIFEN) vs Solo ticket. */}
+            {modoSifen && (
+              <div>
+                <label className={labelClass}>Documento</label>
+                <SegmentedControl<"factura" | "ticket">
+                  value={tipoDocumento}
+                  options={[
+                    { value: "factura", label: "Factura electrónica" },
+                    { value: "ticket", label: "Solo ticket" },
+                  ]}
+                  onChange={(v) => setTipoDocumento(v)}
+                />
+                {tipoDocumento === "factura" ? (
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Al confirmar se emite la factura FAC-XXXXXX y arranca el pipeline SIFEN (firma + envío + KUDE).
+                    Requiere un cliente con RUC/razón social.
+                  </p>
+                ) : (
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Solo se registra la venta y se imprime el comprobante. No genera factura electrónica.
+                  </p>
+                )}
+              </div>
+            )}
 
           </div>
 
