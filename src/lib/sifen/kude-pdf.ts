@@ -335,10 +335,13 @@ export async function buildKudePdfBuffer(input: BuildKudePdfInput): Promise<Buff
   const leftTextX = margin + headerPad + (logoW > 0 ? logoW + 12 : 0);
   const leftMaxChars = Math.max(28, Math.floor((headerSplitX - leftTextX) / 4.2));
 
-  // Tel/Email del emisor: se toman del XML firmado (config SIFEN de la empresa),
-  // NO de constantes hardcodeadas. Si el emisor no tiene el dato, se omite la línea.
-  const telEmisor = (parsed.emisor.dTelEmi || "").trim();
-  const emailEmisor = (parsed.emisor.dEmailE || "").trim();
+  // Tel/Email del emisor: se toman del XML firmado (config SIFEN de la empresa).
+  // Si el XML no los trae, se usa el contacto de HIERROS VH como fallback
+  // (nunca el de Neura).
+  const HIERROS_TEL = "0992 976 141";
+  const HIERROS_EMAIL = "hierrosvh@gmail.com";
+  const telEmisor = (parsed.emisor.dTelEmi || "").trim() || HIERROS_TEL;
+  const emailEmisor = (parsed.emisor.dEmailE || "").trim() || HIERROS_EMAIL;
   const leftChunks: { lines: string[]; size: number; bold: boolean; col: RGB }[] = [
     { lines: wrapByChars(parsed.emisor.dNomEmi, leftMaxChars), size: 9, bold: true, col: BLACK },
     { lines: wrapByChars(parsed.emisor.dDirEmi, leftMaxChars), size: 7.5, bold: false, col: BLACK },
