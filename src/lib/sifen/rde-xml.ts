@@ -432,6 +432,13 @@ export function buildOfficialRdeFacturaElectronicaXml(
   gEmisParts.push("</gEmis>");
 
   const recParts: string[] = ["<gDatRec>"];
+  // SIFEN: si se informa dDirRec, dNumCasRec es OBLIGATORIO. En las ramas
+  // automáticas (B2B RUC / B2C CI / B2F) el cliente no tiene un número de casa
+  // separado; usamos el configurado si existe, o 0 (aceptado por SET).
+  const casaRecAuto: number = (() => {
+    const cr = receptor.sifen_d_num_cas_rec;
+    return cr == null || !Number.isFinite(Number(cr)) ? 0 : Math.max(0, Math.floor(Number(cr)));
+  })();
   if (
     receptor.sifen_receptor_config_manual === true &&
     receptor.sifen_i_nat_rec != null &&
@@ -504,7 +511,10 @@ export function buildOfficialRdeFacturaElectronicaXml(
     recParts.push(textEl("dDTipIDRec", dDesTipo));
     recParts.push(textEl("dNumIDRec", num));
     recParts.push(textEl("dNomRec", receptor.nombre.trim()));
-    if (receptor.direccion?.trim()) recParts.push(textEl("dDirRec", receptor.direccion.trim()));
+    if (receptor.direccion?.trim()) {
+      recParts.push(textEl("dDirRec", receptor.direccion.trim()));
+      recParts.push(textEl("dNumCasRec", String(casaRecAuto)));
+    }
     if (receptor.telefono?.trim()) {
       const tr = receptor.telefono.replace(/\D/g, "");
       if (tr.length >= 8) recParts.push(textEl("dTelRec", tr.slice(0, 15)));
@@ -521,7 +531,10 @@ export function buildOfficialRdeFacturaElectronicaXml(
     recParts.push(textEl("dRucRec", formatoCuerpoRucTipoTruc(dRucRec)));
     recParts.push(textEl("dDVRec", dDVRec));
     recParts.push(textEl("dNomRec", receptor.nombre.trim()));
-    if (receptor.direccion?.trim()) recParts.push(textEl("dDirRec", receptor.direccion.trim()));
+    if (receptor.direccion?.trim()) {
+      recParts.push(textEl("dDirRec", receptor.direccion.trim()));
+      recParts.push(textEl("dNumCasRec", String(casaRecAuto)));
+    }
     if (receptor.telefono?.trim()) {
       const tr = receptor.telefono.replace(/\D/g, "");
       if (tr.length >= 8) recParts.push(textEl("dTelRec", tr.slice(0, 15)));
@@ -538,7 +551,10 @@ export function buildOfficialRdeFacturaElectronicaXml(
     recParts.push(textEl("dDTipIDRec", XSD_DES_DOC_CI_PY));
     recParts.push(textEl("dNumIDRec", doc.slice(0, 20)));
     recParts.push(textEl("dNomRec", receptor.nombre.trim()));
-    if (receptor.direccion?.trim()) recParts.push(textEl("dDirRec", receptor.direccion.trim()));
+    if (receptor.direccion?.trim()) {
+      recParts.push(textEl("dDirRec", receptor.direccion.trim()));
+      recParts.push(textEl("dNumCasRec", String(casaRecAuto)));
+    }
     if (receptor.telefono?.trim()) {
       const tr = receptor.telefono.replace(/\D/g, "");
       if (tr.length >= 8) recParts.push(textEl("dTelRec", tr.slice(0, 15)));
