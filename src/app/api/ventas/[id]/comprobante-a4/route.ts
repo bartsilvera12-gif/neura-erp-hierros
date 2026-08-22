@@ -28,7 +28,7 @@ function fmtGs(v: number): string {
 }
 
 /** Fecha larga tipo "HERNANDARIAS, 20 DE JULIO DEL 2026". Forzada a UTC-3 (Paraguay). */
-function fechaLarga(iso: string, ciudad = "HERNANDARIAS"): string {
+function fechaLarga(iso: string, ciudad = "VILLA HAYES"): string {
   try {
     const d = new Date(iso);
     const py = new Date(d.getTime() - 3 * 60 * 60 * 1000);
@@ -344,10 +344,10 @@ export async function GET(
   <div class="hoja">
     <div class="header-top">
       <div class="brand">
-        <img src="/brand/hierros-logo.png" alt="HIERROS VH" class="logo" onerror="this.style.display='none'" />
+        <img src="/brand/hierros-logo-new.png" alt="HIERROS VH" class="logo" onerror="this.style.display='none'" />
         <div class="empresa-datos">
-          <div class="razon">GRUPO FERRE E.A.S.</div>
-          <div>R.U.C.: 80173997-7</div>
+          <div class="razon">HIERROS VH E.A.S. UNIPERSONAL</div>
+          <div>R.U.C.: 80175853-0</div>
         </div>
       </div>
       <div class="fecha-top">${escapeHtml(fechaLarga(String(v.fecha ?? "")))}</div>
