@@ -544,7 +544,9 @@ export function buildOfficialRdeFacturaElectronicaXml(
     const doc = (receptor.documento ?? "").replace(/\s/g, "").trim();
     if (!doc) throw new Error("Receptor sin RUC: se requiere documento (CI) en cliente.");
     recParts.push(textEl("iNatRec", "2"));
-    recParts.push(textEl("iTiOpe", "1"));
+    // Receptor no contribuyente (CI): la operación es B2C (iTiOpe=2). SET rechaza
+    // "tipo de operación no compatible con la naturaleza del receptor" si es 1.
+    recParts.push(textEl("iTiOpe", "2"));
     recParts.push(textEl("cPaisRec", "PRY"));
     recParts.push(textEl("dDesPaisRe", "Paraguay"));
     recParts.push(textEl("iTipIDRec", "1"));
