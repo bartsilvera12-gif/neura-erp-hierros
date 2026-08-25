@@ -130,3 +130,98 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(errorResponse(msg), { status: 500 });
   }
 }
+
+/**
+ * PATCH /api/gastos — edita un gasto operativo.
+ * Body: { id, categoria?, descripcion?, monto?, tipo?, recurrente?, frecuencia?, fecha? }
+ * Server-side (service role) para resolver el schema del tenant correctamente:
+ * el cliente del browser no conoce el schema y apuntaría al equivocado.
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    const ctx = await getTenantSupabaseFromAuth(request);
+    if (!ctx) {
+      return NextResponse.json(errorResponse(API_ERRORS.UNAUTHORIZED), { status: 401 });
+    }
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+    const id = typeof body.id === "string" ? body.id.trim() : "";
+    if (!id) {
+      return NextResponse.json(errorResponse("Falta el id del gasto."), { status: 400 });
+    }
+
+    const update: Record<string, unknown> = {};
+    if (body.categoria !== undefined) update.categoria = String(body.categoria ?? "").trim() || null;
+    if (body.descripcion !== undefined) update.descripcion = String(body.descripcion ?? "").trim() || null;
+    if (body.monto !== undefined) {
+      const monto = Number(body.monto);
+      if (!Number.isFinite(monto) || monto <= 0) {
+        return NextResponse.json(errorResponse("El monto debe ser mayor a 0."), { status: 400 });
+      }
+      update.monto = monto;
+    }
+    if (body.tipo !== undefined) update.tipo = body.tipo === "fijo" ? "fijo" : "variable";
+    if (body.recurrente !== undefined) update.recurrente = body.recurrente === true;
+    if (body.frecuencia !== undefined) update.frecuencia = String(body.frecuencia ?? "").trim() || null;
+    if (body.fecha !== undefined) {
+      const fecha = typeof body.fecha === "string" && body.fecha.match(/^\d{4}-\d{2}-\d{2}/)
+        ? body.fecha.slice(0, 10)
+        : null;
+      if (!fecha) {
+        return NextResponse.json(errorResponse("Fecha inválida."), { status: 400 });
+      }
+      update.fecha = fecha;
+    }
+
+    if (Object.keys(update).length === 0) {
+      return NextResponse.json(errorResponse("Nada para actualizar."), { status: 400 });
+    }
+
+    const { data, error } = await ctx.supabase
+      .from("gastos")
+      .update(update)
+      .eq("id", id)
+      .eq("empresa_id", ctx.auth.empresa_id)
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      return NextResponse.json(errorResponse(error.message), { status: 400 });
+    }
+    if (!data) {
+      return NextResponse.json(errorResponse("Gasto no encontrado."), { status: 404 });
+    }
+    return NextResponse.json(successResponse(data));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Error";
+    return NextResponse.json(errorResponse(msg), { status: 500 });
+  }
+}
+
+/**
+ * DELETE /api/gastos?id=<uuid> — elimina un gasto operativo (service role, schema del tenant).
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const ctx = await getTenantSupabaseFromAuth(request);
+    if (!ctx) {
+      return NextResponse.json(errorResponse(API_ERRORS.UNAUTHORIZED), { status: 401 });
+    }
+    const id = (request.nextUrl.searchParams.get("id") ?? "").trim();
+    if (!id) {
+      return NextResponse.json(errorResponse("Falta el id del gasto."), { status: 400 });
+    }
+    const { error } = await ctx.supabase
+      .from("gastos")
+      .delete()
+      .eq("id", id)
+      .eq("empresa_id", ctx.auth.empresa_id);
+
+    if (error) {
+      return NextResponse.json(errorResponse(error.message), { status: 400 });
+    }
+    return NextResponse.json(successResponse({ id }));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Error";
+    return NextResponse.json(errorResponse(msg), { status: 500 });
+  }
+}

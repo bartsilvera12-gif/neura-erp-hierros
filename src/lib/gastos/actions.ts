@@ -132,6 +132,25 @@ export async function createGasto(input: GastoInput): Promise<Gasto> {
 export async function updateGasto(id: string, input: Partial<GastoInput>): Promise<Gasto> {
   if (input.monto !== undefined && input.monto <= 0) throw new Error("El monto debe ser mayor a 0");
 
+  if (typeof window !== "undefined") {
+    // Browser: usar API server-side. El cliente del browser no conoce el schema
+    // del tenant (NEURA_CLIENT_SCHEMA no llega al bundle) y apuntaría al equivocado.
+    const res = await fetchWithSupabaseSession("/api/gastos", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, ...input }),
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      success?: boolean;
+      data?: Record<string, unknown>;
+      error?: string;
+    };
+    if (!res.ok || !json.success || !json.data) {
+      throw new Error(json.error ?? `Error ${res.status}`);
+    }
+    return mapRow(json.data);
+  }
+
   const supabase = await getBrowserSupabaseForEmpresaData();
   const update: Record<string, unknown> = {};
   if (input.categoria !== undefined) update.categoria = input.categoria.trim() || null;
@@ -154,6 +173,18 @@ export async function updateGasto(id: string, input: Partial<GastoInput>): Promi
 }
 
 export async function deleteGasto(id: string): Promise<void> {
+  if (typeof window !== "undefined") {
+    // Browser: usar API server-side (mismo motivo que updateGasto).
+    const res = await fetchWithSupabaseSession(`/api/gastos?id=${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+    const json = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string };
+    if (!res.ok || !json.success) {
+      throw new Error(json.error ?? `Error ${res.status}`);
+    }
+    return;
+  }
+
   const supabase = await getBrowserSupabaseForEmpresaData();
   const { error } = await supabase.from("gastos").delete().eq("id", id);
 
