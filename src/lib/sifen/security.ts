@@ -56,5 +56,15 @@ export function decryptSecret(stored: string): string {
   const key = requireSifenSecretsKeyBytes();
   const decipher = createDecipheriv(ALGO, key, iv);
   decipher.setAuthTag(tag);
-  return Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
+  try {
+    return Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
+  } catch {
+    // GCM lanza "Unsupported state or unable to authenticate data" cuando el auth tag
+    // no valida: casi siempre porque SIFEN_SECRETS_KEY cambió o el secreto se cifró en
+    // otro entorno. Traducimos a un mensaje accionable para el usuario final.
+    throw new Error(
+      "No se pudo descifrar la contraseña del certificado. Reingrésela en " +
+        "Configuración → Facturación electrónica y vuelva a guardar."
+    );
+  }
 }
