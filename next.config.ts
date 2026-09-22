@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Build standalone para Dockerfile (server.js + deps mínimas en .next/standalone).
+  output: "standalone",
+
   // Quitar el header "X-Powered-By: Next.js" — leak innecesario de tech stack
   // a clientes/atacantes. Cuesta 0 perf-wise.
   poweredByHeader: false,
