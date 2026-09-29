@@ -83,10 +83,16 @@ export async function handleSifenEnviarPost(
     });
   }
 
-  if (String(feRow.estado_sifen) !== "firmado") {
+  // Se permite enviar con XML firmado ("firmado") y reintentar tras un envío
+  // fallido ("error_envio"). El reintento reenvía el MISMO XML firmado, con el
+  // mismo CDC: la SET es idempotente por CDC (si ya lo tuviera, responde "CDC
+  // encontrado"), así que no genera un duplicado. Sigue bloqueado reenviar
+  // desde "enviado"/"en_proceso"/"aprobado".
+  const estadoActual = String(feRow.estado_sifen);
+  if (estadoActual !== "firmado" && estadoActual !== "error_envio") {
     return NextResponse.json(
       errorResponse(
-        `Solo se puede enviar a SET con estado "firmado". Estado actual: "${feRow.estado_sifen}".`
+        `Solo se puede enviar a SET con estado "firmado" (o reintentar desde "error_envio"). Estado actual: "${estadoActual}".`
       ),
       { status: 409 }
     );
