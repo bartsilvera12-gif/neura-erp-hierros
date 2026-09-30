@@ -99,3 +99,42 @@ Ambas tablas están integradas en reportería y otros módulos, por lo que **cua
 ## 8. Alcance NO incluido
 - No modifica la firma/envío SIFEN ni la condición fiscal de los documentos.
 - No cambia el diseño del recibo (ya incluye N° de factura y saldo pendiente).
+
+---
+
+## Anexo A — Resultados Fase 0 (diagnóstico de datos en producción)
+
+> Consulta read-only sobre todos los schemas de tenant (2026-09-30). Excluye anulados.
+
+### A.1 Alcance real del crédito
+Solo **14 tenants** tienen cuentas por cobrar (>0). El resto no usa crédito, así que el problema es acotado.
+
+### A.2 ¿Quién usa cada flujo de pago?
+
+| Patrón | Tenants | Lectura |
+|---|---|---|
+| **Ambos flujos** (`pagos` + `cobros_clientes`) | **reservacaacupe** (67 + 105), **hierros** (1 + 1) | ⚠️ Riesgo real de doble conteo y de la confusión del incidente |
+| **Solo `cobros_clientes`** | abhuevos, darocha, ferrecolor, tecnolabo, autorepuestosfelix, ferreteriarepublica, ferretodo, mexicana, asunhome, greenlanderp | Facturas quedan **desincronizadas** (cobros no se reflejan en la factura) |
+| Sin cobros aún | hhperfomance, mariliaerp | — |
+
+**Hallazgo clave:** el patrón peligroso (ambos flujos) está **solo en 2 tenants** (uno es hierros, ya corregido). El problema dominante en el resto **no es doble conteo**, sino **facturas con estado/saldo viejos** porque los pagos entran por `cobros_clientes` y **nunca actualizan la factura**.
+
+### A.3 Divergencia factura ⇄ cuenta por cobrar (tenants con enlace)
+En los tenants donde factura y CxC son enlazables (modelo con `facturas.origen_venta_id` o `ventas.factura_id`):
+
+| Tenant | CxC | Facturas con estado "pagado" desalineado | Facturas con saldo desalineado | Pagos sobre crédito (flujo A) |
+|---|---|---|---|---|
+| reservacaacupe | 285 | 41 | 105 | 67 |
+| abhuevos | 109 | 67 | 67 | 0 |
+| darocha | 41 | 20 | 20 | 0 |
+| ferrecolor | 57 | 8 | 8 | 0 |
+| **Total** | | **136** | **200** | **67** |
+
+### A.4 Limitación de medición
+4 tenants con volumen de crédito **no** tienen enlace factura↔venta (`greenlanderp` 610 CxC, `tecnolabo` 73, `autorepuestosfelix` 56, `ferreteriarepublica` 47): sus `facturas` son un subsistema separado (p. ej. greenlanderp es inmobiliario/suscripciones, factura sin `origen_venta_id`). Para esos, la reconciliación factura↔CxC **no aplica con el mismo criterio**; su pago va por `cobros_clientes` (facturas no acopladas).
+
+### A.5 Conclusiones para el plan
+1. **Prioridad 1 — reservacaacupe:** único tenant activo que usa ambos flujos con volumen (67 pagos + 105 cobros). Requiere reconciliación de datos cuidadosa (deduplicar pagos vs cobros) antes de unificar.
+2. **Prioridad 2 — sincronización factura⇄CxC:** el problema dominante (abhuevos/darocha/ferrecolor y la mayoría) es que los cobros no se reflejan en la factura. La **capa de servicio transaccional** (Fase 1) que actualiza ambos lados lo resuelve de raíz para los cobros nuevos; los históricos se corrigen en Fase 4.
+3. **Riesgo de doble conteo:** bajo a nivel plataforma (solo 2 tenants), pero real — refuerza definir una **fuente autoritativa única** de ingresos en la reportería (Fase 3).
+4. **Fuera de alcance directo:** los tenants sin enlace factura↔venta (modelo distinto) se tratan aparte.
