@@ -38,6 +38,61 @@ export async function GET(request: NextRequest, ctxParams: { params: Promise<{ i
   if (rq.error || !rq.data) return new NextResponse("Recibo no encontrado", { status: 404 });
   const r = rq.data as Record<string, unknown>;
 
+  // Número de factura vinculada (por la venta de origen). Documento interno; el FAC es solo referencia.
+  let numeroFactura: string | null = null;
+  const ventaId = r.venta_id ? String(r.venta_id) : null;
+  if (ventaId) {
+    const fq = await ctx.supabase
+      .from("facturas")
+      .select("numero_factura")
+      .eq("empresa_id", ctx.auth.empresa_id)
+      .eq("origen_venta_id", ventaId)
+      .maybeSingle();
+    if (!fq.error && fq.data) {
+      const nf = (fq.data as { numero_factura?: string }).numero_factura;
+      numeroFactura = typeof nf === "string" && nf.trim() ? nf.trim() : null;
+    }
+  }
+
+  // Saldo pendiente al momento del cobro (snapshot histórico e inmutable):
+  // total de la cuenta − suma de cobros de esa cuenta hasta e incluyendo este cobro (por fecha).
+  // Solo aplica a cobros de cuenta por cobrar (crédito); para venta contado no se muestra.
+  let saldoPendiente: number | null = null;
+  const cuentaId = r.cuenta_por_cobrar_id ? String(r.cuenta_por_cobrar_id) : null;
+  const cobroId = r.cobro_cliente_id ? String(r.cobro_cliente_id) : null;
+  if (cuentaId && cobroId) {
+    const [ctaQ, cobQ] = await Promise.all([
+      ctx.supabase
+        .from("cuentas_por_cobrar")
+        .select("total")
+        .eq("empresa_id", ctx.auth.empresa_id)
+        .eq("id", cuentaId)
+        .maybeSingle(),
+      ctx.supabase
+        .from("cobros_clientes")
+        .select("created_at")
+        .eq("empresa_id", ctx.auth.empresa_id)
+        .eq("id", cobroId)
+        .maybeSingle(),
+    ]);
+    const total = Number((ctaQ.data as { total?: number | string } | null)?.total);
+    const cobroCreatedAt = (cobQ.data as { created_at?: string } | null)?.created_at ?? null;
+    if (Number.isFinite(total) && cobroCreatedAt) {
+      const cobrosQ = await ctx.supabase
+        .from("cobros_clientes")
+        .select("monto, created_at")
+        .eq("empresa_id", ctx.auth.empresa_id)
+        .eq("cuenta_por_cobrar_id", cuentaId);
+      if (!cobrosQ.error && Array.isArray(cobrosQ.data)) {
+        const pagadoHasta = (cobrosQ.data as { monto?: number | string; created_at?: string }[])
+          .filter((c) => typeof c.created_at === "string" && c.created_at <= cobroCreatedAt)
+          .reduce((acc, c) => acc + (Number(c.monto) || 0), 0);
+        const s = total - pagadoHasta;
+        saldoPendiente = s < 0 ? 0 : Math.round((s + Number.EPSILON) * 100) / 100;
+      }
+    }
+  }
+
   const moneda = String(r.moneda ?? "PYG");
   const metodo = METODO_LBL[String(r.metodo_pago ?? "")] ?? (r.metodo_pago ?? "—");
 
@@ -82,6 +137,7 @@ export async function GET(request: NextRequest, ctxParams: { params: Promise<{ i
     <div class="meta">
       <div class="num">${esc(r.numero_recibo)}</div>
       <div>Fecha: ${fmtFecha(r.fecha)}</div>
+      ${numeroFactura ? `<div>Factura: ${esc(numeroFactura)}</div>` : ""}
     </div>
   </div>
 
@@ -95,9 +151,11 @@ export async function GET(request: NextRequest, ctxParams: { params: Promise<{ i
   </div>
 
   <div class="det">
+    ${numeroFactura ? `<div><b>Factura:</b> ${esc(numeroFactura)}</div>` : ""}
     ${r.concepto ? `<div><b>Concepto:</b> ${esc(r.concepto)}</div>` : ""}
     <div><b>Método de pago:</b> ${esc(metodo)}</div>
     ${r.referencia ? `<div><b>Referencia:</b> ${esc(r.referencia)}</div>` : ""}
+    ${saldoPendiente !== null ? `<div><b>Saldo pendiente:</b> ${fmtMonto(saldoPendiente, moneda)}${saldoPendiente <= 0.001 ? " (cuenta cancelada)" : ""}</div>` : ""}
     ${r.observaciones ? `<div><b>Observaciones:</b> ${esc(r.observaciones)}</div>` : ""}
   </div>
 
