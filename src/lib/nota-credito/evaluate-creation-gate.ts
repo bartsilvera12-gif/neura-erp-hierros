@@ -34,9 +34,9 @@ export async function evaluateNotaCreditoCreationGate(
 
   const saldo = num((factura as { saldo?: unknown }).saldo);
   const monto = num((factura as { monto?: unknown }).monto);
-  if (saldo <= 0) {
-    return { puede_crear: false, motivo_bloqueo: "No hay saldo pendiente en la factura." };
-  }
+  // Saldo 0 está permitido: habilita la NC total de anulación sobre facturas sin saldo
+  // (p. ej. contado nunca cobrada que se deja sin efecto fiscalmente). El monto de la NC
+  // será el total de la factura (ver create-nota-credito).
 
   const { data: feRow, error: errFe } = await supabase
     .from("factura_electronica")
@@ -146,12 +146,16 @@ export async function evaluateNotaCreditoCreationGate(
     };
   }
 
-  const esperadoSaldo = Math.max(0, monto - sumaPagos);
-  if (Math.abs(saldo - esperadoSaldo) > 0.02) {
-    return {
-      puede_crear: false,
-      motivo_bloqueo: "El saldo no coincide con monto − pagos; corregí la factura antes de continuar.",
-    };
+  // Solo validamos coherencia de saldo cuando hay saldo pendiente. En la NC total de
+  // anulación (saldo 0) no aplica, porque el contado queda con saldo 0 sin filas en `pagos`.
+  if (saldo > 0) {
+    const esperadoSaldo = Math.max(0, monto - sumaPagos);
+    if (Math.abs(saldo - esperadoSaldo) > 0.02) {
+      return {
+        puede_crear: false,
+        motivo_bloqueo: "El saldo no coincide con monto − pagos; corregí la factura antes de continuar.",
+      };
+    }
   }
 
   const { data: aprob } = await supabase

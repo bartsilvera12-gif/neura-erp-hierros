@@ -85,8 +85,9 @@ export async function createNotaCreditoBorrador(p: CreateNotaCreditoParams): Pro
 
   const saldo = num((factura as { saldo?: unknown }).saldo);
   const montoFactura = num((factura as { monto?: unknown }).monto);
-  if (saldo <= 0) {
-    return { ok: false, status: 409, error: "La factura no tiene saldo pendiente; no corresponde nota de crédito." };
+  // Saldo 0 permitido: NC total de anulación (monto = total de la factura). Ver `montoNc` abajo.
+  if (montoFactura <= 0) {
+    return { ok: false, status: 409, error: "La factura no tiene monto; no corresponde nota de crédito." };
   }
 
   const monedaRaw = String((factura as { moneda?: string }).moneda ?? "GS").toUpperCase();
@@ -164,14 +165,19 @@ export async function createNotaCreditoBorrador(p: CreateNotaCreditoParams): Pro
     };
   }
 
-  const montoNc = saldo;
-  const esperadoSaldo = Math.max(0, montoFactura - sumaPagos);
-  if (Math.abs(saldo - esperadoSaldo) > 0.02) {
-    return {
-      ok: false,
-      status: 409,
-      error: `El saldo pendiente (${saldo}) no coincide con monto − pagos (${esperadoSaldo}). Revisá la factura antes de crear una nota de crédito.`,
-    };
+  // NC total de anulación cuando la factura no tiene saldo (p. ej. contado nunca cobrada):
+  // el monto de la NC es el total de la factura. Si hay saldo pendiente, se acredita ese saldo.
+  const montoNc = saldo > 0 ? saldo : montoFactura;
+  // La coherencia saldo = monto − pagos solo aplica cuando hay saldo pendiente.
+  if (saldo > 0) {
+    const esperadoSaldo = Math.max(0, montoFactura - sumaPagos);
+    if (Math.abs(saldo - esperadoSaldo) > 0.02) {
+      return {
+        ok: false,
+        status: 409,
+        error: `El saldo pendiente (${saldo}) no coincide con monto − pagos (${esperadoSaldo}). Revisá la factura antes de crear una nota de crédito.`,
+      };
+    }
   }
 
   const { data: existeAprobada } = await p.supabase
